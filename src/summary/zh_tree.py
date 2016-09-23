@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-from syntaxnet_wrapper import parser
+from parser_client import Parser
 import re
-from libvec import zh
 
 rel_should_merge = {
     'acomp': 'adjectival complement',  # she looks (beautiful)
@@ -64,8 +63,8 @@ words_with_space = [
 ]
 
 chunking_postag = {
-    'VP': {'VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ'},
-    'NP': {'NN', 'NNS', 'NNP', 'NNPS', 'WDT'},
+    'VP': {'VERB'},
+    'NP': {'NOUN', 'DET'},
 }
 
 must_connect_rel = {
@@ -108,12 +107,8 @@ class TreeNode(object):
         return d
 
 
-class DependencyTree(object):
+class ChineseTree(object):
     def __init__(self, sentence, **kwargs):
-        if 'lang' in kwargs:
-            self.parser = parser[kwargs['lang']]
-        else:
-            self.parser = parser['zh']
         if 'merging' in kwargs:
             self.isMerging = kwargs['merging']
         else:
@@ -123,19 +118,19 @@ class DependencyTree(object):
         else:
             self.isNameWithPOS = False
 
-        raw = self.parser.query(' '.join(zh.tw_segment(sentence)))
+        raw = Parser('zh').parse(sentence)[0]
         n_nodes = len(raw) + 1
         nodes = [TreeNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
         for n in raw:
-            i = int(n[0])
-            p = int(n[6])
-            nodes[i].id = int(n[0])
-            nodes[i].name = n[1]
+            i = n['id']
+            p = n['parent']
+            nodes[i].id = n['id']
+            nodes[i].name = n['name']
             if nodes[i].name in words_with_apos:
                 nodes[i].name = nodes[i].name.replace('nt', 'n\'t')
-            nodes[i].pos = n[4]
+            nodes[i].pos = n['pos']
             nodes[i].parent = nodes[p]
-            nodes[i].rel = n[7]
+            nodes[i].rel = n['rel']
             nodes[i].next = nodes[i + 1] if i < n_nodes - 1 else nodes[0]
             nodes[i].prev = nodes[i - 1] if i > 0 else nodes[-1]
             nodes[p].children.append(i)
@@ -212,7 +207,7 @@ class DependencyTree(object):
         # 名稱會依照children及本身的順序組合
         namelist = [(nodes[ch].id, nodes[ch].name) for ch in n.mergelist]
         namelist = sorted(namelist + [(n.id, n.name)])
-        n.name = ' '.join([name for _, name in namelist])
+        n.name = ''.join([name for _, name in namelist])
         # 收集subtree出現過的postag, relation以供後續分析
         for ch in n.mergelist:
             n.pos_list.extend(nodes[ch].pos_list)
@@ -292,10 +287,10 @@ class DependencyTree(object):
                     pos_list.extend(n.pos_list)
                     rel_list.extend(n.rel_list)
                 else:  # chunk被中斷後，就將單字合併為字串
-                    chunk.append(' '.join(chunk_buf))  # collect previous chunk
+                    chunk.append(''.join(chunk_buf))  # collect previous chunk
                     chunk_buf, rel_list, pos_list = [], [], []
         if chunk_buf:
-            chunk.append(' '.join(chunk_buf))
+            chunk.append(''.join(chunk_buf))
         return self.clear_word_space(chunk)
 
     def recursive_tree_chunking(self, tree, depth, depth_node):
@@ -322,14 +317,14 @@ class DependencyTree(object):
                     continue
                 # 如果遇到連接詞，先產生一個沒有連接的chunk
                 if n['rel'] == 'cc':
-                    chunk.append(' '.join([name for _, name in sorted(names)]))
+                    chunk.append(''.join([name for _, name in sorted(names)]))
                 names.append((n['id'], n['name']))
                 rel_list.append(n['rel'])
             # 如果有連接詞'cc'，就一定要有連接的部分'conj'
             for i, rel in enumerate(rel_list[:-1]):
                 if rel == 'cc' and rel_list[i + 1] != 'conj':
                     names[i] = (0, '')
-            chunk.append(' '.join([name for _, name in sorted(names)]))
+            chunk.append(''.join([name for _, name in sorted(names)]))
         return self.clear_word_space(chunk)
 
     def chunking(self):
