@@ -39,3 +39,8 @@ fake-factory==0.5.3
 # SSH for application deployment or systems administration tasks.
 # http://www.fabfile.org/
 Fabric==1.10.2
+
+requests
+numpy
+scikit-learn
+
