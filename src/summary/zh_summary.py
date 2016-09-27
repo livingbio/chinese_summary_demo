@@ -30,8 +30,11 @@ def tidify(string):
         replace(u'\u2018', '\'').replace(u'\u2019', '\'').replace(u'\u201a', '\''). \
         replace(u'\u201b', '\'').replace(u'\u201c', '"').replace(u'\u201d', '"'). \
         replace(u'\u201e', '"').replace(u'\u201f', '"').replace(u'\u2024', '.'). \
-        replace(u'\n', '').replace(u'\r', '')
-    string = re.sub(u'（.+?）', '', re.sub(' +', ' ', re.sub('\(.+?\)', '', string)))
+        replace(u'\n', '').replace(u'\r', '').replace(u'《', '').replace(u'》', ''). \
+        replace(u'【', '').replace(u'】', '').replace(u'「', '').replace(u'」', '')
+    string = re.sub(' +', ' ', string)
+    string = re.sub('\(.+?\)', '', string)
+    string = re.sub(u'（.+?）', '', string)
     return string
 
 

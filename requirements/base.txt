@@ -43,4 +43,4 @@ Fabric==1.10.2
 requests
 numpy
 scikit-learn
-
+git+ssh://git@github.com/livingbio/zhconvert.git#egg=zhconvert

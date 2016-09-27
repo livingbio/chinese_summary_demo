@@ -1,66 +1,57 @@
 # -*- coding: utf-8 -*-
 from parser_client import Parser
+from zhconvert import conv2cn
 import re
 
 rel_should_merge = {
-    'acomp': 'adjectival complement',  # she looks (beautiful)
-    'advcl': 'adverbial clause modifier',
-    'advmod': 'adverb modifier',  # (Genetically) modified food”
-    # 'agent': 'agent',  # He killed by (the police)
-    'amod': 'adjectival modifier',
-    # 'appos': 'appositional modifier',  # Sam, (my brother), arrived
-    'aux': 'auxiliary',  # He (should) leave
-    'auxpass': 'passive auxiliary',  # He (was) fired
-    # 'cc': 'coordination',  # Bill is big (and) honest
-    # 'ccomp': 'clausal complement',  # He says (that you like to swim)
-    # 'conj': 'conjunct',  # Bill is big and (honest)
-    'cop': 'copula',  # Bill (is) big
-    'csubj': 'clausal subject',  # (What she said) is not true
-    'csubjpass': 'clausal passive subjec',  # (That she lied) was suspected
-    'det': 'determiner',  # (The) man is here
-    'dep': 'dependant',  # unknown dependant
-    # 'discourse': 'discourse element',  # (oh) ! you are here!
-    'dobj': 'direct object',  # She gave me (a raise)
-    'expl': 'expletive',  # (There) is a dog
-    'goeswith': 'goes with',  # They come here (with out) legal permission
-    'iobj': 'indirect object',  # She gave (me) a raise
-    # 'mark': 'marker',  # Forces engaged in fighting (after insurgents attacked)
-    'mwe': 'multi-word expression',  # I like dogs (as well as) cats
-    'neg': 'negation modifier',  # Bill is (not) a scientist
-    'nn': 'noun compound modifier',  # (Oil price) is high
-    'npadvmod': 'noun phrase as adverbial modifier',  # 6 (feet) long
-    'nsubj': 'nominal subject',  # The (baby) is cute
-    'nsubjpass': 'passive nominal subject',  # (Dole) was defeated by Clinton
-    'num': 'numeric modifier',  # Sam ate (3) sheep
-    'number': 'element of compound number',  # I lost $ (3.2) billion
-    # 'parataxis': 'parataxis',  # The guy, (John said), left early in the morning
-    'pcomp': 'prepositional complement',  # They heard about (you missing classes)
-    'pobj': 'object of a preposition',  # I sat on (the chair)
-    'poss': 'possession modifier',  # (their) offices
-    'possessive': 'possessive modifier',  # Bill (’s) clothes
-    # 'preconj': 'preconjunct',  # (Both) the boys and the girls are here
-    'predet': 'predeterminer',  # (All) the boys are here
-    'prep': 'prepositional modifier',  # I saw a cat (in a hat)
-    'prepc': 'prepositional clausal modifier',  # He purchased it (without paying a premium)
-    'prt': 'phrasal verb particle',  # They shut (down) the station
-    # 'punct': 'punctuation',  # Go home (!)
-    'quantmod': 'quantifier phrase modifier',  # (About) 200 people came to the party
-    'rcmod': 'relative clause modifier',  # I saw the book which (you bought)
-    # 'ref' : 'referent',  # I saw the book (which) you bought
-    # 'tmod': 'temporal modifier',  # I swam in the pool last (night)
-    'vmod': 'reduced non-finite verbal modifier',  # I don’t have anything (to say to you)
-    'xcomp': 'open clausal complement',  # I am ready (to leave)
-    'xsubj': 'controlling subject',  # (Tom) likes to eat fish
+    'acl': 'clausal modifier of noun',  # 一個範圍(之內) (出來)迎接
+    # 'acl:relcl': 'acl:relcl',  # 昂貴(的)設備 美國(的)首都
+    # 'advcl': 'adverbial clause modifier',  # (一般來說)，跑車較貴
+    'advmod': 'adverbial modifier',  # (大)多數 (多半)放在桌上
+    'amod': 'adjectival modifier',  # (昂貴)的設備
+    'appos': 'appositional modifier',  # 化外之地，(文明地區以外的地方)，
+    'aux': 'auxiliary',  # 你(可能)錯了 我(會)幫你
+    'aux:caus': 'aux:caus',  # 我(把)家裡整理的很乾淨 他(將)酒一飲而盡
+    'auxpass': 'passive auxiliary',  # 他(被)擊中了
+    'case': 'case marking',  # 玩家將(和)敵人作戰 (從)東門走到西門
+    'case:aspect': 'case:aspect',  # 他對此表示(了)不滿
+    'case:dec': 'case:dec',  # 公司(的)財產 迪士尼(的)公主
+    'case:pref': 'case:pref',  # (總)面積 世界三(大)男高音
+    'case:suff': 'case:suff',  # (愛斯基摩)人 (電視)機 (加長)型禮車
+    # 'cc': 'coordinating conjunction',  # 我(和)你 法魯克(與)拳四郎的對決
+    # 'ccomp': 'clausal complement',  # 這台車歸(私人擁有) 我說(你可能錯了)
+    'compound': 'compound',
+    # 'conj': 'conjunct',  # 愛斯基摩人和(維京人)
+    # 'cop': 'copula',  # 這台車(則是)公司的財產
+    'csubj': 'clausal subject',  # (這條線代表的)是100米
+    'csubjpass': 'clausal passive subject',  # (燒荒肥田)曾被廣泛應用
+    # 'dep': 'unspecified dependency',  # 人口12萬人((2009年))
+    'det': 'determiner',  # (這台)車 (公司的)財產 (我和你的)交往
+    # 'discourse': 'discourse element',  # 我可能猜錯(了) 這是他的責任(呀)
+    'dislocated': 'dislocated elements',  # 這部分(我都看過) 會議(旨在發展經濟)
+    'dobj': 'direct object',  # 升為副(教授) 購買(設備) 前往(東京)
+    # 'expl': 'expletive',
+    'foreign': 'foreign words',  # 表面溫度(10000K) 由吉布斯((Gibbs))設計
+    'goeswith': 'goes with',
+    'iobj': 'indirect object',  # 東區併入(西區) 把梨子讓給(弟弟)
+    'list': 'list',
+    # 'mark': 'marker',  # 移動(時)要注意 (而)工廠則停止生產
+    'mwe': 'multi-word expression',
+    'name': 'name',
+    'neg': 'negation modifier',  # (未)完工 (不)奇怪
+    'nmod': 'nominal modifier',  # (網路)公司 (美)元
+    # 'nmod:tmod': 'nmod:tmod',  # (昨天上午)，他出來走走 英語(長期)是官方語言
+    'nsubj': 'nominal subject',  # (愛斯基摩人和維京人)定居在此
+    'nsubjpass': 'passive nominal subject',  # (系統)被破壞
+    'nummod': 'numeric modifier',  # (四百五十萬)美元
+    # 'parataxis': 'parataxis',
+    # 'punct': 'punctuation',
+    # 'remnant': 'remnant in ellipsis',  # 北京城有七門，(南門三門)，(東西各一門)
+    # 'reparandum': 'overridden disfluency',
+    'root': 'root',
+    'vocative': 'vocative',
+    'xcomp': 'open clausal complement',  # 被認為(是違禁品) 開始(變得頻繁)
 }
-
-words_with_apos = [
-    'arent', 'cant', 'couldnt', 'didnt', 'doesnt', 'dont', 'hadnt', 'hasnt',
-    'havent', 'isnt', 'mustnt', 'shouldnt', 'wasnt', 'werent', 'wont', 'wouldnt',
-]
-
-words_with_space = [
-    " 're ", " n't ", " 've ", " 's ", " 'll ", " 'd ",
-]
 
 chunking_postag = {
     'VP': {'VERB'},
@@ -68,7 +59,7 @@ chunking_postag = {
 }
 
 must_connect_rel = {
-    'acomp', 'ccomp', 'pcomp', 'xcomp', 'dobj', 'iobj', 'pobj',
+    'ccomp', 'xcomp', 'dobj', 'iobj',
 }
 
 
@@ -118,16 +109,16 @@ class ChineseTree(object):
         else:
             self.isNameWithPOS = False
 
-        raw = Parser('zh').parse(sentence)[0]
+        raw = Parser('zh').parse(conv2cn(sentence))[0]
         n_nodes = len(raw) + 1
         nodes = [TreeNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
+        offset = 0
         for n in raw:
             i = n['id']
             p = n['parent']
             nodes[i].id = n['id']
-            nodes[i].name = n['name']
-            if nodes[i].name in words_with_apos:
-                nodes[i].name = nodes[i].name.replace('nt', 'n\'t')
+            nodes[i].name = sentence[offset:(offset + len(n['name']))]
+            offset += len(n['name'])
             nodes[i].pos = n['pos']
             nodes[i].parent = nodes[p]
             nodes[i].rel = n['rel']
@@ -161,12 +152,8 @@ class ChineseTree(object):
             # 符合merge條件的relation
             if n.rel in rel_should_merge:
                 n.parent.mergelist.append(n.id)
-            # 如果是"and xxx"的句型，也要merge
-            elif n.rel == 'cc' and n.next.rel == 'conj' and not n.children and not n.next.children:
-                n.parent.mergelist.extend([n.id, n.id + 1])
-            # 一般","不會merge，但遇到"$ 1 , 000"時則要
-            if n.rel == 'number' and n.prev.pos == ',':
-                n.parent.mergelist.append(n.id - 1)
+            elif n.rel == 'acl:relcl' and len(n.name) == 1:
+                n.parent.mergelist.append(n.id)
 
         for n in nodes[1:]:
             if not n.mergelist:  # 如果mergelist是空的
@@ -201,13 +188,16 @@ class ChineseTree(object):
             return
         for ch in n.children:  # each child should be merged first
             self.recursive_merge(nodes, ch)
-        if not n.mergelist:
+        if not n.mergelist and n.merged:
+            n.merged = False
+            if n.id in n.parent.mergelist:
+                n.parent.mergelist.remove(n.id)
             return
 
         # 名稱會依照children及本身的順序組合
         namelist = [(nodes[ch].id, nodes[ch].name) for ch in n.mergelist]
         namelist = sorted(namelist + [(n.id, n.name)])
-        n.name = ''.join([name for _, name in namelist])
+        n.name = ' '.join([name for _, name in namelist])
         # 收集subtree出現過的postag, relation以供後續分析
         for ch in n.mergelist:
             n.pos_list.extend(nodes[ch].pos_list)
@@ -226,6 +216,7 @@ class ChineseTree(object):
         # 如果任一子節點無法被merge，則就不該再往上merge，應該設自己merged=False
         # 但如果parent只有自己一個child，則仍然會merge
         if len(n.parent.children) > 1 and any([not nodes[ch].merged for ch in n.children]):
+            print n.name, '|', n.parent.name, '|', nodes[n.children[0]].name, 'stop merge'
             n.merged = False
             if n.id in n.parent.mergelist:
                 n.parent.mergelist.remove(n.id)
@@ -240,22 +231,10 @@ class ChineseTree(object):
             self.nodes[nid].prev = self.nodes[nonempty[i - 1]]
 
     def find_possible_root(self, tree, collect):
-        if tree['rel'] in ('parataxis', 'ROOT'):
+        if tree['rel'] == 'ROOT':
             collect.append(tree)
         for child in tree['children']:
             self.find_possible_root(child, collect)
-
-    def clear_word_space(self, chunk):
-        ret_chunk = []
-        for i, ch in enumerate(chunk):
-            if len(ch) == 0:
-                continue
-            for w in words_with_space:  # 讓顯示較美觀，合併 "ca n't" 為"can't"
-                ch = ch.replace(w, w[1:])
-            ch = re.sub('[,:;\.\!\?] ([,:;\.\!\?])', '\\1', ch)
-            ch = re.sub(' [,:;]$', '', ch)
-            ret_chunk.append(ch)
-        return ret_chunk
 
     def node_chunking(self):
         chunk, chunk_buf, rel_list, pos_list = [], [], [], []
@@ -287,10 +266,10 @@ class ChineseTree(object):
                     pos_list.extend(n.pos_list)
                     rel_list.extend(n.rel_list)
                 else:  # chunk被中斷後，就將單字合併為字串
-                    chunk.append(''.join(chunk_buf))  # collect previous chunk
+                    chunk.append(' '.join(chunk_buf))  # collect previous chunk
                     chunk_buf, rel_list, pos_list = [], [], []
         if chunk_buf:
-            chunk.append(''.join(chunk_buf))
+            chunk.append(' '.join(chunk_buf))
         return self.clear_word_space(chunk)
 
     def recursive_tree_chunking(self, tree, depth, depth_node):
@@ -317,15 +296,15 @@ class ChineseTree(object):
                     continue
                 # 如果遇到連接詞，先產生一個沒有連接的chunk
                 if n['rel'] == 'cc':
-                    chunk.append(''.join([name for _, name in sorted(names)]))
+                    chunk.append(' '.join([name for _, name in sorted(names)]))
                 names.append((n['id'], n['name']))
                 rel_list.append(n['rel'])
             # 如果有連接詞'cc'，就一定要有連接的部分'conj'
             for i, rel in enumerate(rel_list[:-1]):
                 if rel == 'cc' and rel_list[i + 1] != 'conj':
                     names[i] = (0, '')
-            chunk.append(''.join([name for _, name in sorted(names)]))
-        return self.clear_word_space(chunk)
+            chunk.append(' '.join([name for _, name in sorted(names)]))
+        return chunk
 
     def chunking(self):
         # return list(set(self.node_chunking() + self.tree_chunking(self.tree)))
@@ -334,5 +313,5 @@ class ChineseTree(object):
         chunks = []
         for root in roots:
             chunks.extend(self.tree_chunking(root))
-        chunks = list(set(chunks))
+        chunks = [ch for ch in set(chunks) if ch]
         return chunks
