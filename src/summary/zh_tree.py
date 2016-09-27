@@ -216,7 +216,6 @@ class ChineseTree(object):
         # 如果任一子節點無法被merge，則就不該再往上merge，應該設自己merged=False
         # 但如果parent只有自己一個child，則仍然會merge
         if len(n.parent.children) > 1 and any([not nodes[ch].merged for ch in n.children]):
-            print n.name, '|', n.parent.name, '|', nodes[n.children[0]].name, 'stop merge'
             n.merged = False
             if n.id in n.parent.mergelist:
                 n.parent.mergelist.remove(n.id)
@@ -287,23 +286,24 @@ class ChineseTree(object):
         for depth in range(max_depth):
             nodes.extend(depth_node[depth])
             names = []
-            rel_list = []
             for n in nodes:
                 # 任何comp結尾的關係都視為必須，如果child中有以comp關係連接
                 # 但child還沒有加入nodes，則放棄這個點
                 if any([child['rel'] in must_connect_rel and child not in nodes
-                        for child in n['children']]):
-                    continue
+                       for child in n['children']]):
+                   continue
                 # 如果遇到連接詞，先產生一個沒有連接的chunk
-                if n['rel'] == 'cc':
-                    chunk.append(' '.join([name for _, name in sorted(names)]))
-                names.append((n['id'], n['name']))
-                rel_list.append(n['rel'])
+                # if n['rel'] == 'cc':
+                #     chunk.append(' '.join([name for _, name, _ in sorted(names)]))
+                names.append((n['id'], n['name'], n['rel']))
+            names = sorted(names)
             # 如果有連接詞'cc'，就一定要有連接的部分'conj'
-            for i, rel in enumerate(rel_list[:-1]):
-                if rel == 'cc' and rel_list[i + 1] != 'conj':
-                    names[i] = (0, '')
-            chunk.append(' '.join([name for _, name in sorted(names)]))
+            for i in range(len(names) - 1):
+                if names[i][2] == 'cc' and names[i + 1][2] != 'conj':
+                    names[i] = (0, '', '')
+            while names and names[0][2] in ('punct', 'mark'):
+                del names[0]
+            chunk.append(' '.join([name for _, name, _ in names]))
         return chunk
 
     def chunking(self):

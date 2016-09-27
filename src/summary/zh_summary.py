@@ -35,6 +35,7 @@ def tidify(string):
     string = re.sub(' +', ' ', string)
     string = re.sub('\(.+?\)', '', string)
     string = re.sub(u'（.+?）', '', string)
+    string = re.sub(u'--.+?--', '', string)
     return string
 
 
@@ -47,10 +48,10 @@ def find_special_nouns(raw_text):
     for w in w2v.oovword(raw_text):
         cnt = raw_text.count(w)
         cntlower = raw_text.count(w.lower())
-        print 'OOV', w, cnt, cntlower, cnt > 4, (cnt - cntlower) > 2
+        # print 'OOV', w, cnt, cntlower, cnt > 4, (cnt - cntlower) > 2
         if w[0].isupper() and cnt > 4 and (cnt - cntlower) > 2:
             proper_noun.add(w)
-        elif cnt > 8 and all([ord(ch) > 256 for ch in w]):
+        elif len(w) > 1 and cnt > 8 and all([ord(ch) > 256 for ch in w]):
             proper_noun.add(w)
     return proper_noun
 
