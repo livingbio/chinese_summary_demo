@@ -1,7 +1,33 @@
 # -*- coding: utf-8 -*-
 from parser_client import Parser
-from zhconvert import conv2cn
+from zhconvert import conv2cn, ZHConvert
 import re
+
+try:
+    zh = ZHConvert('http://localhost:9998/pos?wsdl', 'http://localhost:9999/seg?wsdl')
+    zh.tw_postag(u'今天天氣真好')
+except:
+    zh = ZHConvert()
+
+universal = {
+    'AD': 'ADV', 'AS': 'PRT', 'BA': 'X', 'CC': 'CONJ', 'CD': 'NUM', 'CS': 'CONJ',
+    'DEC': 'PRT', 'DEG': 'PRT', 'DER': 'PRT', 'DEV': 'PRT', 'DT': 'DET',
+    'ETC': 'PRT', 'FW': 'X', 'IJ': 'X', 'JJ': 'ADJ', 'LB': 'X', 'LC': 'PRT',
+    'M': 'NUM', 'MSP': 'PRT', 'NN': 'NOUN', 'NR': 'NOUN', 'NT': 'NOUN',
+    'OD': 'NUM', 'ON': 'X', 'P': 'ADP', 'PN': 'PRON', 'PU': 'PUNCT', 'SB': 'X',
+    'SP': 'PRT', 'VA': 'VERB', 'VC': 'VERB', 'VE': 'VERB', 'VV': 'VERB', 'X': 'X',
+}
+
+
+def tagged_sent_to_conll(tagged_sent):
+    conll = []
+    num = 1
+    for word, postag in tagged_sent:
+        x = [str(num), word, '_', universal[postag], postag, '_', '0', '_', '_', '_']
+        conll.append('\t'.join(x))
+        num += 1
+    return '\n'.join(conll) + '\n'
+
 
 rel_should_merge = {
     'acl': 'clausal modifier of noun',  # 一個範圍(之內) (出來)迎接
@@ -22,13 +48,13 @@ rel_should_merge = {
     # 'ccomp': 'clausal complement',  # 這台車歸(私人擁有) 我說(你可能錯了)
     'compound': 'compound',
     # 'conj': 'conjunct',  # 愛斯基摩人和(維京人)
-    # 'cop': 'copula',  # 這台車(則是)公司的財產
+    'cop': 'copula',  # 這台車(則是)公司的財產
     'csubj': 'clausal subject',  # (這條線代表的)是100米
     'csubjpass': 'clausal passive subject',  # (燒荒肥田)曾被廣泛應用
     # 'dep': 'unspecified dependency',  # 人口12萬人((2009年))
     'det': 'determiner',  # (這台)車 (公司的)財產 (我和你的)交往
     # 'discourse': 'discourse element',  # 我可能猜錯(了) 這是他的責任(呀)
-    'dislocated': 'dislocated elements',  # 這部分(我都看過) 會議(旨在發展經濟)
+    # 'dislocated': 'dislocated elements',  # 這部分(我都看過) 會議(旨在發展經濟)
     'dobj': 'direct object',  # 升為副(教授) 購買(設備) 前往(東京)
     # 'expl': 'expletive',
     'foreign': 'foreign words',  # 表面溫度(10000K) 由吉布斯((Gibbs))設計
@@ -109,6 +135,8 @@ class ChineseTree(object):
         else:
             self.isNameWithPOS = False
 
+        # tagged_sent = zh.cn_postag(conv2cn(sentence))
+        # raw = Parser('zh').parse_raw(tagged_sent_to_conll(tagged_sent))[0]
         raw = Parser('zh').parse(conv2cn(sentence))[0]
         n_nodes = len(raw) + 1
         nodes = [TreeNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
@@ -230,7 +258,7 @@ class ChineseTree(object):
             self.nodes[nid].prev = self.nodes[nonempty[i - 1]]
 
     def find_possible_root(self, tree, collect):
-        if tree['rel'] == 'ROOT':
+        if tree['rel'] in ('ROOT', 'dislocated'):
             collect.append(tree)
         for child in tree['children']:
             self.find_possible_root(child, collect)

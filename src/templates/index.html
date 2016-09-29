@@ -140,13 +140,23 @@ function callback(data) {
     content += "</table>";
     $( "#target" ).append( content );
 }
+function clear() {
+    svg1.selectAll("*").remove();
+    svg2.selectAll("*").remove();
+    $( "#raw" ).empty();
+    $( "#raw" ).append( "in progress..." );
+    $( "#target" ).empty();
+}
 $( "#parse0" ).click(function() {
+    clear();
     $.post( "/parse/0/", {'text': $( "#text" ).val()}, callback );
 });
 $( "#parse1" ).click(function() {
+    clear();
     $.post( "/parse/1/", {'text': $( "#text" ).val()}, callback );
 });
 $( "#parse2" ).click(function() {
+    clear();
     $.post( "/parse/2/", {'text': $( "#text" ).val()}, callback );
 });
 </script>

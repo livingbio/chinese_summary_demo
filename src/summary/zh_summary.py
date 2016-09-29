@@ -69,6 +69,7 @@ def adjust_by_nouns(score, sentences, proper_nouns=None, growth=1.05):
 
 def adjust_by_len(score, sentences, limit=30, decay=0.998):
     for i, s in enumerate(sentences):
+        s = s.replace(' ', '')
         if zhlen(s) > limit:
             panelty = decay ** ((zhlen(s) - limit) * 2)
         elif zhlen(s) < limit / 2:

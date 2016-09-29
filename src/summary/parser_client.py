@@ -15,6 +15,14 @@ class Parser(object):
         r = json.loads(requests.post(url, data=data).text)
         return r['nodes']
 
+    def parse_raw(self, list_of_sent):
+        if isinstance(list_of_sent, basestring):
+            list_of_sent = [list_of_sent]
+        data = {'sentences': u'##'.join(list_of_sent)}
+        url = '{}/parser_raw/{}'.format(self.url, self.lang)
+        r = json.loads(requests.post(url, data=data).text)
+        return r['nodes']
+
     def tag(self, list_of_sent):
         if isinstance(list_of_sent, basestring):
             list_of_sent = [list_of_sent]
