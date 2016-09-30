@@ -40,7 +40,7 @@ def tidify(string):
 
 
 def sent_tokenize(raw_text):
-    return re.findall(u'[^。？！；]+', raw_text)
+    return re.findall(u'[^。？！；\?\!\;]+', raw_text)
 
 
 def find_special_nouns(raw_text):

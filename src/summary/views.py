@@ -21,7 +21,7 @@ def parse_api(request, num='0'):
     ret = {
         'raw': unicode(origtree),
         'short': zip(summary.tolist(), shorten.tolist()),
-        'tree_orig': origtree.tree,
-        'tree': mergtree.tree,
+        'tree_orig': origtree.tree.tree,
+        'tree': mergtree.tree.tree,
     }
     return JsonResponse(ret)

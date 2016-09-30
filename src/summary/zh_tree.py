@@ -1,33 +1,6 @@
 # -*- coding: utf-8 -*-
 from parser_client import Parser
-from zhconvert import conv2cn, ZHConvert
 import re
-
-try:
-    zh = ZHConvert('http://localhost:9998/pos?wsdl', 'http://localhost:9999/seg?wsdl')
-    zh.tw_postag(u'今天天氣真好')
-    print 'use localhost segmenter and postagger'
-except:
-    zh = ZHConvert()
-
-universal = {
-    'AD': 'ADV', 'AS': 'PRT', 'BA': 'X', 'CC': 'CONJ', 'CD': 'NUM', 'CS': 'CONJ',
-    'DEC': 'PRT', 'DEG': 'PRT', 'DER': 'PRT', 'DEV': 'PRT', 'DT': 'DET',
-    'ETC': 'PRT', 'FW': 'X', 'IJ': 'X', 'JJ': 'ADJ', 'LB': 'X', 'LC': 'PRT',
-    'M': 'NUM', 'MSP': 'PRT', 'NN': 'NOUN', 'NR': 'NOUN', 'NT': 'NOUN',
-    'OD': 'NUM', 'ON': 'X', 'P': 'ADP', 'PN': 'PRON', 'PU': 'PUNCT', 'SB': 'X',
-    'SP': 'PRT', 'VA': 'VERB', 'VC': 'VERB', 'VE': 'VERB', 'VV': 'VERB', 'X': 'X',
-}
-
-
-def tagged_sent_to_conll(tagged_sent):
-    conll = []
-    num = 1
-    for word, postag in tagged_sent:
-        x = [str(num), word, '_', universal[postag], postag, '_', '0', '_', '_', '_']
-        conll.append('\t'.join(x))
-        num += 1
-    return '\n'.join(conll) + '\n'
 
 
 rel_should_merge = {
@@ -62,7 +35,7 @@ rel_should_merge = {
     'goeswith': 'goes with',
     'iobj': 'indirect object',  # 東區併入(西區) 把梨子讓給(弟弟)
     'list': 'list',
-    'mark': 'marker',  # 移動(時)要注意 (而)工廠則停止生產
+    # 'mark': 'marker',  # 移動(時)要注意 (而)工廠則停止生產
     'mwe': 'multi-word expression',
     'name': 'name',
     'neg': 'negation modifier',  # (未)完工 (不)奇怪
@@ -85,13 +58,18 @@ chunking_postag = {
     'NP': {'NOUN', 'DET'},
 }
 
-must_connect_rel = {
+tree_connect = {
     'ccomp', 'xcomp', 'dobj', 'iobj', 'nsubj', 'dep', 'acl',
     'acl:relcl',
 }
 
+rule_connect = {
+    'xcomp', 'ccomp', 'amod', 'nsubj', 'dobj', 'csubj',
+    'det',
+}
 
-class TreeNode(object):
+
+class ParseNode(object):
     def __init__(self):
         self.id = -1
         self.parent = None
@@ -126,6 +104,47 @@ class TreeNode(object):
         return d
 
 
+def bfs(tree):
+    retbfs_queue = []
+    bfs_queue = [tree]
+    while bfs_queue:
+        tree = bfs_queue.pop(0)
+        retbfs_queue.append(tree)
+        for child in tree['children']:
+            bfs_queue.append(child)
+    return retbfs_queue
+
+def dfs(tree):
+    dfs_queue = []
+    dfs_stack = [tree]
+    while dfs_stack:
+        tree = dfs_stack.pop()
+        dfs_queue.append(tree)
+        for child in tree['children'][::-1]:
+            dfs_stack.append(child)
+    return dfs_queue
+
+
+class TreeNode(object):
+    def __init__(self, nodes, index, isNameWithPOS):
+        self.isNameWithPOS = isNameWithPOS
+        self.tree = self.create(nodes, index, 1)
+
+    def create(self, nodes, index, depth):
+        tree = nodes[index].dict(self.isNameWithPOS)
+        tree['depth'] = depth
+        tree['children'] = [self.create(nodes, ch, depth + 1)
+                            for ch in tree['children'] if nodes[ch] is not None]
+        return tree
+
+    def roots(self):
+        roots = []
+        for tree in bfs(self.tree):
+            if tree['rel'] in ('ROOT', 'dislocated'):
+                roots.append(tree)
+        return roots
+
+
 class ChineseTree(object):
     def __init__(self, sentence, **kwargs):
         if 'merging' in kwargs:
@@ -137,18 +156,21 @@ class ChineseTree(object):
         else:
             self.isNameWithPOS = False
 
-        # tagged_sent = zh.cn_postag(conv2cn(sentence))
-        # raw = Parser('zh').parse_raw(tagged_sent_to_conll(tagged_sent))[0]
+        sentence = re.sub('([A-Za-z]) ([A-Za-z])', '\\1_\\2', sentence)
+        sentence = re.sub('([A-Za-z]) ([A-Za-z])', '\\1_\\2', sentence)
+        sentence = sentence.replace(' ', '').replace('_', ' ')
         raw = Parser('zh').parse(sentence)[0]
         n_nodes = len(raw) + 1
-        nodes = [TreeNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
-        offset = 0
+        nodes = [ParseNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
+        start = 0
         for n in raw:
             i = n['id']
             p = n['parent']
             nodes[i].id = n['id']
-            nodes[i].name = sentence[offset:(offset + len(n['name']))]
-            offset += len(n['name'])
+            nodes[i].name = sentence[start:(start + len(n['name']))]
+            start += len(n['name'])
+            while start < len(sentence) and sentence[start] == ' ':
+                start += 1
             nodes[i].pos = n['pos']
             nodes[i].parent = nodes[p]
             nodes[i].rel = n['rel']
@@ -165,7 +187,7 @@ class ChineseTree(object):
         self.execute_merge()  # if self.isMerging, merge nodes by 'mergelist'
         # if self.isNameWithPOS == True, names of nodes contain pos-tag
         self.root_index = nodes[0].children[0]
-        self.tree = self.create_tree(nodes, self.root_index)
+        self.tree = TreeNode(nodes, self.root_index, self.isNameWithPOS)
 
     def __unicode__(self):
         nonempty = [n for n in self.nodes[1:] if n]
@@ -173,12 +195,6 @@ class ChineseTree(object):
 
     def __str__(self):
         return unicode(self).encode('utf-8')
-
-    def create_tree(self, nodes, index):
-        tree = nodes[index].dict(self.isNameWithPOS)
-        tree['children'] = [self.create_tree(nodes, ch)
-                            for ch in tree['children'] if nodes[ch] is not None]
-        return tree
 
     def analyse_merge(self):
         nodes = self.nodes
@@ -188,9 +204,12 @@ class ChineseTree(object):
                 n.parent.mergelist.append(n.id)
             elif n.rel == 'acl:relcl' and len(n.name) == 1:
                 n.parent.mergelist.append(n.id)
-            elif n.rel == 'nmod' and n.pos in ('PROPN', 'NOUN'):
+            elif n.rel == 'nmod' and n.pos in ('PROPN', 'NOUN', 'PRON'):
                 n.parent.mergelist.append(n.id)
-            elif len(n.children) == 0 and (n.rel in ('cc', 'conj') or n.name == u'、'):
+            elif len(n.children) == 0 and n.name == u'、':
+                n.parent.mergelist.append(n.id)
+            elif n.rel == 'cc' and n.next.rel == 'conj' and \
+                len(n.children) == 0 and len(n.next.children) <= 1:
                 n.parent.mergelist.append(n.id)
 
         for n in nodes[1:]:
@@ -252,7 +271,18 @@ class ChineseTree(object):
             if n.id in n.parent.mergelist:
                 n.parent.mergelist.remove(n.id)
             return
-        self.merge_single_node(n, n.mergelist)
+        mergelist = []
+        for ch in sorted(filter(lambda x: x < n.id, n.children))[::-1]:
+            if nodes[ch].merged:
+                mergelist.append(ch)
+            else:
+                break
+        for ch in sorted(filter(lambda x: x > n.id, n.children)):
+            if nodes[ch].merged:
+                mergelist.append(ch)
+            else:
+                break
+        self.merge_single_node(n, mergelist)
         # 嘗試merge children sibling
         mergelist = []
         for ch in n.children:
@@ -281,104 +311,57 @@ class ChineseTree(object):
             self.nodes[nid].next = self.nodes[nonempty[i + 1]]
             self.nodes[nid].prev = self.nodes[nonempty[i - 1]]
 
-    def find_possible_root(self, tree, collect):
-        if tree['rel'] in ('ROOT', 'dislocated'):
-            collect.append(tree)
-        for child in tree['children']:
-            self.find_possible_root(child, collect)
+    def validate_names(self, names):
+        # 如果有連接詞'cc'，就一定要有連接的部分'conj'
+        for i in range(len(names) - 1):
+            if names[i][2] == 'cc' and names[i + 1][2] != 'conj':
+                names[i] = (0, '', '')
+            if names[i][2] == 'punct' and names[i + 1][2] == 'punct':
+                names[i + 1] = (0, '', '')
+        while names and names[0][2] in ('punct', 'mark'):
+            del names[0]
+        while names and names[-1][2] in ('punct', 'mark'):
+            del names[-1]
 
-    def node_chunking(self):
-        chunk, chunk_buf, rel_list, pos_list = [], [], [], []
-        nodes = [n for n in self.nodes[1:] if n is not None]
-        if len(nodes) > 1 and (nodes[1].pos in chunking_postag['VP'] or nodes[1].pos in chunking_postag['NP']):
-            chunk_buf.append('')
+    def rule_chunking(self, root):
+        chunks = []
+        ids = [root['id']]
+        trees = [root]
+        for tree in bfs(root):
+            if tree['parent'] not in ids or tree['id'] in ids:
+                continue
+            if tree['rel'] in rule_connect:
+                trees.append(tree)
+                ids.append(tree['id'])
+            elif tree['rel'] in ('acl', 'acl:relcl') and tree['pos'] == 'VERB':
+                trees.append(tree)
+                ids.append(tree['id'])
+            elif tree['rel'] == 'punct' and trees[-1]['rel'] != 'punct':
+                trees.append(tree)
+                ids.append(tree['id'])
+        names = sorted([(t['id'], t['name'], t['rel']) for t in trees])
+        self.validate_names(names)
+        chunks.append(''.join([nn for _, nn, _ in names]))
 
-        for n in nodes:
-            nodeIsVP = any([pos in chunking_postag['VP'] for _, pos in n.pos_list])
-            nodeIsNP = any([pos in chunking_postag['NP'] for _, pos in n.pos_list])
-            if nodeIsVP or nodeIsNP:  # 如果是名詞片語或動詞片語，則加入chunk_buf
-                chunk_buf.append(n.name)
-                pos_list.extend(n.pos_list)
-                rel_list.extend(n.rel_list)
-            elif chunk_buf:  # 非名詞或非動詞
-                if n.rel == 'punct' and n.next.id > 0:
-                    # parataxis 通常語意是獨立的
-                    if n.next.rel == 'parataxis':
-                        append_chunk = False
-                    # 如果chunk本身不完整(缺主詞或動詞)，則應把逗號視為chunk的一部分
-                    elif any([rel.count('subj') > 0 for _, rel in n.next.rel_list]):
-                        append_chunk = True
-                    else:  # 一般情況下，逗號會隔開chunk
-                        append_chunk = False
-                else:
-                    append_chunk = False  # 非名詞或非動詞預設會隔開chunk
-                if append_chunk:
-                    chunk_buf.append(n.name)
-                    pos_list.extend(n.pos_list)
-                    rel_list.extend(n.rel_list)
-                else:  # chunk被中斷後，就將單字合併為字串
-                    chunk.append(''.join(chunk_buf))  # collect previous chunk
-                    chunk_buf, rel_list, pos_list = [], [], []
-        if chunk_buf:
-            chunk.append(''.join(chunk_buf))
-        return chunk
-
-    def recursive_tree_chunking(self, tree, depth, depth_node):
-        if depth >= len(depth_node):
-            return
-        depth_node[depth].append(tree)
-        for child in tree['children']:
-            self.recursive_tree_chunking(child, depth + 1, depth_node)
-
-    def tree_chunking(self, tree, max_depth=6):
-        depth_node = [list() for _ in range(max_depth)]
-        self.recursive_tree_chunking(tree, 0, depth_node)
-        nodes = []
-        chunk = []
-        for depth in range(max_depth):
-            nodes.extend(depth_node[depth])
-            names = []
-            for n in nodes:
-                # 任何comp結尾的關係都視為必須，如果child中有以comp關係連接
-                # 但child還沒有加入nodes，則放棄這個點
-                if any([child['rel'] in must_connect_rel and child not in nodes for child in n['children']]):
-                    print 'skip', n['name']
-                    #p = n['parent']
-                    #p = [k for k in nodes if k['id'] == n['parent']]
-                    #while p:
-                    continue
-                # 如果遇到連接詞，先產生一個沒有連接的chunk
-                # if n['rel'] == 'cc':
-                #     chunk.append(''.join([name for _, name, _ in sorted(names)]))
-                names.append((n['id'], n['name'], n['rel']))
-            names = sorted(names)
-            # 如果有連接詞'cc'，就一定要有連接的部分'conj'
-            for i in range(len(names) - 1):
-                if names[i][2] == 'cc' and names[i + 1][2] != 'conj':
-                    names[i] = (0, '', '')
-                if names[i][2] == 'punct' and names[i + 1][2] == 'punct':
-                    names[i + 1] = (0, '', '')
-            while names and names[0][2] in ('punct', 'mark'):
-                del names[0]
-            chunk.append(''.join([name for _, name, _ in names]))
-        return chunk
-
-    def rule_chunking(self):
-        names = []
-        for n in self.nodes:
-            if n is not None and n.id > 0:
-                if n.rel in ('nmod',):
-                    continue
-                names.append((n.id, n.name))
-        return [''.join([name for _, name in sorted(names)])]
+        rule = rule_connect | set(('acl', 'acl:relcl', 'dep'))
+        for tree in bfs(root):
+            if tree['parent'] not in ids or tree['id'] in ids:
+                continue
+            if tree['rel'] in rule:
+                trees.append(tree)
+                ids.append(tree['id'])
+            elif tree['rel'] == 'punct' and trees[-1]['rel'] != 'punct':
+                trees.append(tree)
+                ids.append(tree['id'])
+        names = sorted([(t['id'], t['name'], t['rel']) for t in trees])
+        self.validate_names(names)
+        chunks.append(''.join([nn for _, nn, _ in names]))
+        return chunks
 
     def chunking(self):
-        # return list(set(self.node_chunking() + self.tree_chunking(self.tree)))
-        roots = []
-        self.find_possible_root(self.tree, roots)
+        roots = self.tree.roots()
         chunks = []
         for root in roots:
-            chunks.extend(self.tree_chunking(root))
-            chunks.extend(self.rule_chunking())
+            chunks.extend(self.rule_chunking(root))
         chunks = [ch for ch in set(chunks) if ch]
         return chunks
