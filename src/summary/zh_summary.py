@@ -92,7 +92,7 @@ def summary_text(raw_text, n_summary=5, algorithm=2):
     '''
     raw_text = tidify(raw_text.replace(u'\n\n', u'。\n\n'))
     summary_data['special_nouns'] = find_special_nouns(raw_text)
-    print '>>> Proper Nouns', '/'.join(summary_data['special_nouns'])
+    # print '>>> Proper Nouns', '/'.join(summary_data['special_nouns'])
 
     sents = np.array([s for s in sent_tokenize(raw_text) if zhlen(s) > 10])
     # score_reward = adjust_by_nouns([1.0] * len(sents), sents, growth=1.01)

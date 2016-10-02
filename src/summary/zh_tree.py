@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
 from parser_client import Parser
 import re
+from datetime import datetime as dt
 
 
 rel_should_merge = {
     'acl': 'clausal modifier of noun',  # 一個範圍(之內) (出來)迎接
     # 'acl:relcl': 'acl:relcl',  # 昂貴(的)設備 美國(的)首都
     # 'advcl': 'adverbial clause modifier',  # (一般來說)，跑車較貴
-    'advmod': 'adverbial modifier',  # (大)多數 (多半)放在桌上
+    # 'advmod': 'adverbial modifier',  # (大)多數 (多半)放在桌上
     'amod': 'adjectival modifier',  # (昂貴)的設備
     'appos': 'appositional modifier',  # 化外之地，(文明地區以外的地方)，
+    'asp': 'asp',
+    'assmod': 'assmod',
     'aux': 'auxiliary',  # 你(可能)錯了 我(會)幫你
     'aux:caus': 'aux:caus',  # 我(把)家裡整理的很乾淨 他(將)酒一飲而盡
     'auxpass': 'passive auxiliary',  # 他(被)擊中了
@@ -19,7 +22,8 @@ rel_should_merge = {
     'case:pref': 'case:pref',  # (總)面積 世界三(大)男高音
     'case:suff': 'case:suff',  # (愛斯基摩)人 (電視)機 (加長)型禮車
     # 'cc': 'coordinating conjunction',  # 我(和)你 法魯克(與)拳四郎的對決
-    # 'ccomp': 'clausal complement',  # 這台車歸(私人擁有) 我說(你可能錯了)
+    'ccomp': 'clausal complement',  # 這台車歸(私人擁有) 我說(你可能錯了)
+    'clf': 'clf',
     'compound': 'compound',
     # 'conj': 'conjunct',  # 愛斯基摩人和(維京人)
     'cop': 'copula',  # 這台車(則是)公司的財產
@@ -30,37 +34,33 @@ rel_should_merge = {
     'discourse': 'discourse element',  # 我可能猜錯(了) 這是他的責任(呀)
     # 'dislocated': 'dislocated elements',  # 這部分(我都看過) 會議(旨在發展經濟)
     'dobj': 'direct object',  # 升為副(教授) 購買(設備) 前往(東京)
+    'dvpmod': 'dvpmod',
     # 'expl': 'expletive',
     'foreign': 'foreign words',  # 表面溫度(10000K) 由吉布斯((Gibbs))設計
     'goeswith': 'goes with',
     'iobj': 'indirect object',  # 東區併入(西區) 把梨子讓給(弟弟)
     'list': 'list',
-    # 'mark': 'marker',  # 移動(時)要注意 (而)工廠則停止生產
+    'loc': 'loc',
+    'mark': 'marker',  # 移動(時)要注意 (而)工廠則停止生產
+    'mmod': 'mmod',
     'mwe': 'multi-word expression',
-    'name': 'name',
+    'nn': 'nn',
     'neg': 'negation modifier',  # (未)完工 (不)奇怪
     # 'nmod': 'nominal modifier',  # (網路)公司 (美)元
     # 'nmod:tmod': 'nmod:tmod',  # (昨天上午)，他出來走走 英語(長期)是官方語言
     'nsubj': 'nominal subject',  # (愛斯基摩人和維京人)定居在此
     'nsubjpass': 'passive nominal subject',  # (系統)被破壞
     'nummod': 'numeric modifier',  # (四百五十萬)美元
+    'prep': 'prep',
     # 'parataxis': 'parataxis',
     # 'punct': 'punctuation',
     # 'remnant': 'remnant in ellipsis',  # 北京城有七門，(南門三門)，(東西各一門)
     # 'reparandum': 'overridden disfluency',
-    'root': 'root',
+    'relcl': 'relcl',
+    # 'root': 'root',
+    # 'tmod': 'tmod',
     'vocative': 'vocative',
     'xcomp': 'open clausal complement',  # 被認為(是違禁品) 開始(變得頻繁)
-}
-
-chunking_postag = {
-    'VP': {'VERB'},
-    'NP': {'NOUN', 'DET'},
-}
-
-tree_connect = {
-    'ccomp', 'xcomp', 'dobj', 'iobj', 'nsubj', 'dep', 'acl',
-    'acl:relcl',
 }
 
 all_pos = {
@@ -69,61 +69,24 @@ all_pos = {
 }
 
 rule_connect_1 = {
-    'xcomp': all_pos,
-    'ccomp': all_pos,
-    'amod': all_pos,
-    'nsubj': all_pos,
-    'dobj': all_pos,
-    'iobj': all_pos,
-    'csubj': all_pos,
-    'det': all_pos,
-    'aux': all_pos,
-    'aux:caus': all_pos,
-    'appos': all_pos,
-# special case
-    'acl': {'VERB', 'ADJ', 'PART'},
-    'acl:relcl': {'VERB', 'ADJ', 'PART'},
-    'nmod': {'PART', 'VERB', 'X'},
+    'prep',
+    'conj',
+    'cc',
+    'nsubj',
+    'dobj',
+    'dep',
+    'punct',
+    'advmod',
+    'mmod',
+    'ccomp',
+    'relcl',
 }
 
-rule_connect_2 = {
-    'xcomp': all_pos,
-    'ccomp': all_pos,
-    'amod': all_pos,
-    'nsubj': all_pos,
-    'dobj': all_pos,
-    'iobj': all_pos,
-    'csubj': all_pos,
-    'det': all_pos,
-    'aux': all_pos,
-    'aux:caus': all_pos,
-    'appos': all_pos,
-# special case
-    'acl': {'VERB', 'ADJ', 'PART'},
-    'acl:relcl': {'VERB', 'ADJ', 'PART'},
-    'nmod': {'PART', 'VERB', 'X'},
-    'dep': {'VERB'},
+better_connect = {
+    'advmod',
+    'mmod',
 }
 
-rule_connect_3 = {
-    'xcomp': all_pos,
-    'ccomp': all_pos,
-    'amod': all_pos,
-    'nsubj': all_pos,
-    'dobj': all_pos,
-    'iobj': all_pos,
-    'csubj': all_pos,
-    'det': all_pos,
-    'aux': all_pos,
-    'aux:caus': all_pos,
-    'appos': all_pos,
-# new in rule_connect_2
-    'acl': all_pos,
-    'acl:relcl': all_pos,
-    'dep': {'VERB', 'ADJ', 'X', 'NOUN'},
-    'nmod': all_pos,
-    'nmod:tmod': all_pos,
-}
 
 class ParseNode(object):
     def __init__(self):
@@ -200,10 +163,12 @@ class TreeNode(object):
         for tree in bfs(self.tree):
             if tree in roots:
                 continue
-            if tree['rel'] in ('ROOT', 'dislocated'):
+            if tree['rel'] == 'root':
                 roots.append(tree)
-            elif len(tree['children']) > 7:
+            elif tree['rel'] == 'conj' and len(tree['children']) > 5:
                 roots.append(tree)
+            # elif len(tree['children']) > 7:
+            #     roots.append(tree)
         return roots
 
 
@@ -220,29 +185,23 @@ class ChineseTree(object):
 
         sentence = re.sub('([A-Za-z]) ([A-Za-z])', '\\1_\\2', sentence)
         sentence = re.sub('([A-Za-z]) ([A-Za-z])', '\\1_\\2', sentence)
-        sentence = sentence.replace(' ', '').replace('_', ' ')
+        sentence = sentence.replace(' ', '')
+        start = dt.now()
         raw = Parser('zh').parse(sentence)[0]
+        print '   parse a sentence', dt.now() - start
         n_nodes = len(raw) + 1
         nodes = [ParseNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
         for n in raw:
             i = n['id']
             p = n['parent']
             nodes[i].id = n['id']
-            nodes[i].name = n['name']
+            nodes[i].name = n['name'].replace('_', ' ')
             nodes[i].pos = n['pos']
             nodes[i].parent = nodes[p]
             nodes[i].rel = n['rel']
-            if n['pos'] == 'PUNCT':
-                nodes[i].rel = 'punct'
-            if n['rel'] == 'punct' and n['pos'] != 'PUNCT':
-                nodes[i].rel = 'ccomp'
-            if n['pos'] == 'ADJ' and n['rel'] == 'dep':
-                nodes[i].rel = 'amod'
             nodes[i].next = nodes[i + 1] if i < n_nodes - 1 else nodes[0]
             nodes[i].prev = nodes[i - 1] if i > 0 else nodes[-1]
             nodes[p].children.append(i)
-            if n['rel'] == 'punct' and nodes[i].name == ',':
-                nodes[i].name = u'，'
         self.nodes = nodes
 
         self.analyse_merge()  # prepare 'merged' and 'mergelist' attributes
@@ -264,20 +223,8 @@ class ChineseTree(object):
             # 符合merge條件的relation
             if n.rel in rel_should_merge:
                 n.parent.mergelist.append(n.id)
-            elif n.rel == 'acl:relcl' and len(n.name) == 1:
+            elif n.rel == 'advmod' and len(n.name) == 1:
                 n.parent.mergelist.append(n.id)
-            elif n.rel == 'mark' and n.pos == 'VERB':
-                n.parent.mergelist.append(n.id)
-            elif n.rel == 'nmod' and n.pos in ('PROPN', 'NOUN', 'PRON', 'PART'):
-                n.parent.mergelist.append(n.id)
-            elif n.name == u'、' and n.next.rel == 'conj' and \
-                len(n.children) == 0 and len(n.next.children) <= 1:
-                n.parent.mergelist.append(n.id)
-                n.parent.mergelist.append(n.next.id)
-            elif n.rel == 'cc' and n.next.rel == 'conj' and \
-                len(n.children) == 0 and len(n.next.children) <= 1:
-                n.parent.mergelist.append(n.id)
-                n.parent.mergelist.append(n.next.id)
 
         for n in nodes[1:]:
             if not n.mergelist:  # 如果mergelist是空的
@@ -396,15 +343,17 @@ class ChineseTree(object):
             if names[i][2] == 'punct' and names[i][1] == u'、' and names[i + 1][2] != 'conj':
                 names[i] = (0, '', '')
         names = sorted([n for n in names if n[0] > 0])
-        while names and names[0][2] in ('punct', 'mark'):
+        while names and names[0][2] in ('punct', 'mark', 'advmod'):
             del names[0]
-        while names and names[-1][2] in ('punct', 'mark'):
+        while names and names[-1][2] in ('punct', 'mark', 'advmod'):
             del names[-1]
         return names
 
     def generate_names(self, trees):
         names = []
         for t in trees:
+            if any([ch['rel'] in rule_connect_1 and ch not in trees for ch in t['children']]):
+                continue
             try:
                 names[-1][1].encode('ascii')
                 t['name'].encode('ascii')
@@ -416,21 +365,27 @@ class ChineseTree(object):
 
     def rule_chunking(self, root):
         chunks = []
-        for rule in [rule_connect_1, rule_connect_2, rule_connect_3]:
+        for rule in [rule_connect_1]:
             ids = [root['id']]
             trees = [root]
+            depth = 1
             for tree in bfs(root):
                 if tree['parent'] not in ids or tree['id'] in ids:
                     continue
-                if tree['rel'] in rule and tree['pos'] in rule[tree['rel']]:
+                if tree['depth'] > depth:
+                    depth = tree['depth']
+                    names = self.generate_names(trees)
+                    names = self.validate_names(names)
+                    chunks.append(''.join([nn for _, nn, _ in names]))
+                    # print 'depth=', depth, chunks[-1]
+                if tree['rel'] in rule:
                     trees.append(tree)
                     ids.append(tree['id'])
-                elif tree['rel'] == 'punct':
-                    trees.append(tree)
-                    ids.append(tree['id'])
+                    # print 'append', tree['name']
             names = self.generate_names(trees)
             names = self.validate_names(names)
             chunks.append(''.join([nn for _, nn, _ in names]))
+            # print chunks[-1]
         return chunks
 
     def chunking(self):
