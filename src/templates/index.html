@@ -6,6 +6,10 @@ body {
     margin: 0px;
     padding: 10px;
 }
+td {
+    margin: 0px;
+    padding: 3px;
+}
 .node circle {
     fill: #fff;
     stroke: steelblue;
@@ -29,21 +33,7 @@ body {
 {% block extra_js %}
 <script src="http://d3js.org/d3.v3.min.js"></script>
 <script>
-var treeData = [
-    { 'name': 'ate', 'id': 2, 'pos': 'VBP',
-    'children': [
-        { 'name': 'Mary', 'id': 1, 'pos': 'NN' },
-        { 'name': 'pizza', 'id': 4, 'pos': 'NN',
-        'children': [
-            { 'name': 'the', 'id': 3, 'pos': 'DT' },
-            { 'name': 'fork', 'id': 7, 'pos': 'NN',
-            'children': [
-                { 'name': 'with', 'id': 5, 'pos': 'IN' },
-                { 'name': 'a', 'id': 6, 'pos': 'DT' }
-            ]}
-        ]}
-    ]}
-];
+var treeData = [{"name": "None"}];
 // ************** Generate the tree diagram	 *****************
 var margin = {top: 40, right: 40, bottom: 20, left: 40},
 	width = 1000 - margin.right - margin.left,
@@ -112,7 +102,7 @@ function update(source, svg) {
             return d.children || d._children ? -18 : 18; })
         .attr("dy", ".35em")
         .attr("text-anchor", "middle")
-        .text(function(d) { return d.name; })
+        .text(function(d) { return d.name.replace(/\_/g, ""); })
         .style("fill-opacity", 1);
 
     nodeEnter.append("text")
@@ -124,8 +114,10 @@ function update(source, svg) {
 function callback(data) {
     treeData = data.tree;
     short = data.short;
-    update(data.tree_orig, svg1);
-    update(data.tree, svg2);
+    if ($( "#tree" ).get()[0].checked) {
+        update(data.tree_orig, svg1);
+        update(data.tree, svg2);
+    }
     $( "#raw" ).empty();
     $( "#raw" ).append( data.raw );
     $( "#target" ).empty();
@@ -133,9 +125,15 @@ function callback(data) {
     content += "<tr><th width='300'>Summary</th><th>Shorten Summary</th></tr>";
     for (i = 0; i < data.short.length; i++) {
         x = data.short[i][1];
-        x = x.sort( function(L, R) { return L < R; } ).join('<br />\n');
+        x = x.sort( function(L, R) { return L < R; } );
+        var y = "<table border='0'>";
+        for (j = 0; j < x.length; j++) {
+            y += "<tr><td>" + x[j][0] + "<td>" + x[j][1].replace(/\_/g, "");
+            //console.log(x[j][1].replace(/\_/g, ""));
+        }
+        y += "</table>";
         content += "<tr><td>" + data.short[i][0] + "</td>";
-        content += "<td>" + x + "</td></tr>";
+        content += "<td>" + y + "</td></tr>";
     }
     content += "</table>";
     $( "#target" ).append( content );
@@ -149,25 +147,26 @@ function clear() {
 }
 $( "#parse0" ).click(function() {
     clear();
-    $.post( "/parse/0/", {'text': $( "#text" ).val()}, callback );
+    $.post( "/parse/0/", {'text': $( "#text" ).val(), 'tree': $( "#tree" ).get()[0].checked}, callback );
 });
 $( "#parse1" ).click(function() {
     clear();
-    $.post( "/parse/1/", {'text': $( "#text" ).val()}, callback );
+    $.post( "/parse/1/", {'text': $( "#text" ).val(), 'tree': $( "#tree" ).get()[0].checked}, callback );
 });
 $( "#parse2" ).click(function() {
     clear();
-    $.post( "/parse/2/", {'text': $( "#text" ).val()}, callback );
+    $.post( "/parse/2/", {'text': $( "#text" ).val(), 'tree': $( "#tree" ).get()[0].checked}, callback );
 });
 </script>
 {% endblock %}
 
 {% block body %}
 {% csrf_token %}
-<textarea id="text" rows="1" cols="80">Mary ate the pizza with a fork</textarea>
+<textarea id="text" rows="1" cols="80">她想用這樣修圖的方式，來成為她認為我想讓她成為的樣子。</textarea>
 <button type="button" id="parse0">Dynamic Programming</button>
 <button type="button" id="parse1">Clustering</button>
 <button type="button" id="parse2">Simple</button>
+<input type="checkbox" id="tree" />
 <pre id='raw'>
 
 </pre>

@@ -14,14 +14,19 @@ def parse_api(request, num='0'):
     start = dt.now()
     shorten = shorten_sents(summary)
     print 'shorten', dt.now() - start
-    start = dt.now()
-    mergtree = ChineseTree(summary[0], name_with_pos=True)
-    origtree = ChineseTree(summary[0], merging=False, name_with_pos=True)
-    print 'tree', dt.now() - start
+    if request.POST['tree'] == 'true':
+        mergtree = ChineseTree(summary[0], name_with_pos=True)
+        tree_merg = mergtree.tree.tree
+        origtree = ChineseTree(summary[0], merging=False, name_with_pos=True)
+        tree_orig = origtree.tree.tree
+    else:
+        origtree = ''
+        tree_merg = []
+        tree_orig = []
     ret = {
         'raw': unicode(origtree),
         'short': zip(summary.tolist(), shorten.tolist()),
-        'tree_orig': origtree.tree.tree,
-        'tree': mergtree.tree.tree,
+        'tree_orig': tree_orig,
+        'tree': tree_merg,
     }
     return JsonResponse(ret)

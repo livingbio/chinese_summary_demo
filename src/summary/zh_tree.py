@@ -45,15 +45,19 @@ rel_should_merge = {
     'mmod': 'mmod',
     'mwe': 'multi-word expression',
     'nn': 'nn',
+    'nfincl': 'nfincl',
     'neg': 'negation modifier',  # (未)完工 (不)奇怪
     # 'nmod': 'nominal modifier',  # (網路)公司 (美)元
     # 'nmod:tmod': 'nmod:tmod',  # (昨天上午)，他出來走走 英語(長期)是官方語言
-    'nsubj': 'nominal subject',  # (愛斯基摩人和維京人)定居在此
+    # 'nsubj': 'nominal subject',  # (愛斯基摩人和維京人)定居在此
     'nsubjpass': 'passive nominal subject',  # (系統)被破壞
     'nummod': 'numeric modifier',  # (四百五十萬)美元
-    'prep': 'prep',
+    # 'prep': 'prep',
     # 'parataxis': 'parataxis',
     # 'punct': 'punctuation',
+    'prtmod': 'prtmod',
+    'range': 'range',
+    'rcomp': 'rcomp',
     # 'remnant': 'remnant in ellipsis',  # 北京城有七門，(南門三門)，(東西各一門)
     # 'reparandum': 'overridden disfluency',
     'relcl': 'relcl',
@@ -63,37 +67,32 @@ rel_should_merge = {
     'xcomp': 'open clausal complement',  # 被認為(是違禁品) 開始(變得頻繁)
 }
 
-all_pos = {
-    'ADJ', 'ADP', 'ADV', 'AUX', 'CONJ', 'DET', 'INTJ', 'NOUN', 'NUM', 'PART',
-    'PRON', 'PROPN', 'PUNCT', 'SCONJ', 'SYM', 'VERB', 'X',
+valid_ending = {'root', 'punct', 'etc'}
+
+rule_connect = {
+    'prep', 'conj', 'cc', 'nsubj', 'dobj', 'dep', 'punct',
+    'advmod', 'mmod', 'ccomp', 'relcl', 'cop',
 }
 
-rule_connect_1 = {
-    'prep',
-    'conj',
-    'cc',
-    'nsubj',
-    'dobj',
-    'dep',
-    'punct',
-    'advmod',
-    'mmod',
-    'ccomp',
-    'relcl',
-}
-
-better_connect = {
-    'advmod',
-    'mmod',
-}
+must_have_child = [
+    {
+        'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
+        'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
+    },
+    {
+        'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
+        'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
+        'ccomp', 'prep',
+    }
+]
 
 
 class ParseNode(object):
     def __init__(self):
         self.id = -1
         self.parent = None
-        self.pos = ''
-        self.rel = ''
+        self.pos = 'root'
+        self.rel = 'root'
         self.children = list()
         self.mergelist = list()
         self.merged = False
@@ -159,16 +158,19 @@ class TreeNode(object):
         return tree
 
     def roots(self):
-        roots = []
+        roots_id = []
         for tree in bfs(self.tree):
-            if tree in roots:
-                continue
             if tree['rel'] == 'root':
+                roots_id.append(tree['id'])
+            elif tree['rel'] in ('conj', 'ccomp', 'dep') and len(tree['children']) >= 5:
+                roots_id.append(tree['id'])
+            elif tree['rel'] == 'prep' and len(tree['children']) >= 5:
+                roots_id.append(tree['parent'])
+        roots = []
+        roots_id = set(roots_id)
+        for tree in bfs(self.tree):
+            if tree['id'] in roots_id:
                 roots.append(tree)
-            elif tree['rel'] == 'conj' and len(tree['children']) > 5:
-                roots.append(tree)
-            # elif len(tree['children']) > 7:
-            #     roots.append(tree)
         return roots
 
 
@@ -188,12 +190,14 @@ class ChineseTree(object):
         sentence = sentence.replace(' ', '')
         start = dt.now()
         raw = Parser('zh').parse(sentence)[0]
-        print '   parse a sentence', dt.now() - start
+        print '   parse a sentence len={}, time={!s}'.format(len(sentence), dt.now() - start)
         n_nodes = len(raw) + 1
         nodes = [ParseNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
         for n in raw:
             i = n['id']
             p = n['parent']
+            if n['rel'] == 'punct' and n['parent'] == 0:
+                p = i - 1
             nodes[i].id = n['id']
             nodes[i].name = n['name'].replace('_', ' ')
             nodes[i].pos = n['pos']
@@ -206,7 +210,6 @@ class ChineseTree(object):
 
         self.analyse_merge()  # prepare 'merged' and 'mergelist' attributes
         self.execute_merge()  # if self.isMerging, merge nodes by 'mergelist'
-        # if self.isNameWithPOS == True, names of nodes contain pos-tag
         self.root_index = nodes[0].children[0]
         self.tree = TreeNode(nodes, self.root_index, self.isNameWithPOS)
 
@@ -223,7 +226,11 @@ class ChineseTree(object):
             # 符合merge條件的relation
             if n.rel in rel_should_merge:
                 n.parent.mergelist.append(n.id)
-            elif n.rel == 'advmod' and len(n.name) == 1:
+            elif n.rel == 'advmod' and n.prev.rel not in ('punct', ''):
+                n.parent.mergelist.append(n.id)
+            elif n.rel == 'prep' and n.pos == 'VERB':
+                n.parent.mergelist.append(n.id)
+            elif n.rel == 'nsubj' and len(n.children) == 0:
                 n.parent.mergelist.append(n.id)
 
         for n in nodes[1:]:
@@ -239,12 +246,12 @@ class ChineseTree(object):
             for ch in left_child:
                 if ch in n.mergelist:
                     cont_merge.append(ch)
-                else:  # elif nodes[ch].rel == 'punct':
+                else:
                     break
             for ch in righ_child:
                 if ch in n.mergelist:
                     cont_merge.append(ch)
-                else:  # elif nodes[ch].rel == 'punct':
+                else:
                     break
             n.mergelist = sorted(cont_merge)
             # 需要被merge的子節點，會有"merged"屬性
@@ -264,10 +271,11 @@ class ChineseTree(object):
             except:
                 pass
         namelist = sorted(namelist)
-        n.name = ''.join([name for _, name in namelist])
+        n.name = '_'.join([name for _, name in namelist])
         # 收集subtree出現過的postag, relation以供後續分析
-        n.pos_list.extend([nodes[ch].pos_list for ch in mergelist])
-        n.rel_list.extend([nodes[ch].rel_list for ch in mergelist])
+        for ch in mergelist:
+            n.pos_list.extend(nodes[ch].pos_list)
+            n.rel_list.extend(nodes[ch].rel_list)
         n.pos_list = sorted(n.pos_list)
         n.rel_list = sorted(n.rel_list)
         # 被merge的點就從nodes中消失了，本來的位置設為None
@@ -288,6 +296,8 @@ class ChineseTree(object):
             return
         for ch in n.children:  # each child should be merged first
             self.recursive_merge(nodes, ch)
+        if len(n.children) == 1 and nodes[n.children[0]].rel == 'punct':
+            n.mergelist.append(n.children[0])
         if not n.mergelist and n.merged:  # n有children, 但沒有mergelist, 就不能被merge
             n.merged = False
             if n.id in n.parent.mergelist:
@@ -317,8 +327,7 @@ class ChineseTree(object):
                 mergelist = []
 
         # 如果任一子節點無法被merge，則就不該再往上merge，應該設自己merged=False
-        # 但如果parent只有自己一個child，則仍然會merge
-        if len(n.parent.children) > 1 and any([not nodes[ch].merged for ch in n.children]):
+        if n.parent.children and any([not nodes[ch].merged for ch in n.children]):
             n.merged = False
             if n.id in n.parent.mergelist:
                 n.parent.mergelist.remove(n.id)
@@ -329,7 +338,7 @@ class ChineseTree(object):
         self.recursive_merge(self.nodes, self.nodes[0].children[0])
         # 重新產生next, preve兩個指標
         nonempty = [i for i, n in enumerate(self.nodes) if n] + [0]
-        for i, nid in enumerate(nonempty[1:]):
+        for i, nid in zip(range(1, len(nonempty)), nonempty[1:-1]):
             self.nodes[nid].next = self.nodes[nonempty[i + 1]]
             self.nodes[nid].prev = self.nodes[nonempty[i - 1]]
 
@@ -347,13 +356,13 @@ class ChineseTree(object):
             del names[0]
         while names and names[-1][2] in ('punct', 'mark', 'advmod'):
             del names[-1]
+        if self.nodes[names[-1][0]].next.rel not in valid_ending:
+            return [(0, '', '')]
         return names
 
     def generate_names(self, trees):
         names = []
         for t in trees:
-            if any([ch['rel'] in rule_connect_1 and ch not in trees for ch in t['children']]):
-                continue
             try:
                 names[-1][1].encode('ascii')
                 t['name'].encode('ascii')
@@ -361,31 +370,41 @@ class ChineseTree(object):
             except:
                 pass
             names.append((t['id'], t['name'], t['rel']))
-        return sorted(names)
+        names = self.validate_names(sorted(names))
+        return '_'.join([nn for _, nn, _ in names])
+
+    def append_treenode(self, ids, trees, tree, child_rule):
+        trees.append(tree)
+        ids.append(tree['id'])
+        has_one_conj = False
+        for ch in tree['children']:
+            if ch['rel'] in child_rule:
+                self.append_treenode(ids, trees, ch, child_rule)
+            elif ch['rel'] == 'prep' and len(ch['children']) == 0:
+                self.append_treenode(ids, trees, ch, child_rule)
+            elif not has_one_conj and ch['rel'] == 'conj' and ch['pos'] == 'VERB':
+                has_one_conj = True
+                self.append_treenode(ids, trees, ch, child_rule)
 
     def rule_chunking(self, root):
-        chunks = []
-        for rule in [rule_connect_1]:
-            ids = [root['id']]
-            trees = [root]
+        chunks = list()
+        for child_rule in must_have_child:
+            ids, trees = list(), list()
+            self.append_treenode(ids, trees, root, child_rule)
             depth = 1
             for tree in bfs(root):
                 if tree['parent'] not in ids or tree['id'] in ids:
                     continue
+                n = self.nodes[tree['id']]
                 if tree['depth'] > depth:
                     depth = tree['depth']
-                    names = self.generate_names(trees)
-                    names = self.validate_names(names)
-                    chunks.append(''.join([nn for _, nn, _ in names]))
-                    # print 'depth=', depth, chunks[-1]
-                if tree['rel'] in rule:
-                    trees.append(tree)
-                    ids.append(tree['id'])
-                    # print 'append', tree['name']
-            names = self.generate_names(trees)
-            names = self.validate_names(names)
-            chunks.append(''.join([nn for _, nn, _ in names]))
-            # print chunks[-1]
+                    chunks.append(self.generate_names(trees))
+                if n.prev.rel == 'punct' and n.pos_list[0][1] in ('ADP', 'ADV') \
+                    and n.prev.prev.pos_list[-1][1] != 'PRT':
+                    chunks.append(self.generate_names(trees))
+                if tree['rel'] in rule_connect:
+                    self.append_treenode(ids, trees, tree, child_rule)
+            chunks.append(self.generate_names(trees))
         return chunks
 
     def chunking(self):
