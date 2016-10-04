@@ -155,6 +155,9 @@ def summary_text(raw_text, n_summary=5, algorithm=2):
     summary_data['summary_vector'] = sents_vector[index]
     return np.array(sents[index])
 
+dont_split_word = {
+    u'也',
+}
 
 def shorten_sents(summary):
     shorten = []
@@ -173,12 +176,14 @@ def shorten_sents(summary):
                 if (t1 in ('VERB', 'NOUN') and t2 == '.' and t3 in ('ADV', 'ADP')) or \
                     (t1 == 'PRT' and t2 == '.' and t3 == 'NOUN'):
                     w1, w2, w3 = tagtext[i - 2][0], tagtext[i - 1][0], tagtext[i][0]
-                    split_point.append(s.find(w1 + w2 + w3) + len(w1))
+                    split_point.append((s.find(w1 + w2 + w3) + len(w1), w3))
             if split_point:
-                p = split_point[-1]  # split_point[np.argmin(np.abs(np.array(split_point) - len(s) // 2))]
-                if len(split_point) > 1 and (p < 20 or len(s) - p < 20):
-                    p = split_point[-2]
-                chunks = ChineseTree(s[:p]).chunking() + ChineseTree(s[(p + 1):]).chunking()
+                for cut, cut_word in split_point[::-1]:
+                    if cut_word in dont_split_word:
+                        continue
+                    if cut >= 20 and len(s) - cut >= 20:  # two parts have at least 20 characters
+                        break
+                chunks = ChineseTree(s[:cut]).chunking() + ChineseTree(s[(cut + 1):]).chunking()
             else:
                 chunks = ChineseTree(s).chunking()
         else:
