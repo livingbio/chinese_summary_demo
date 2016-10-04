@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from scipy.spatial.distance import cosine, cdist
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import MeanShift, estimate_bandwidth
 import numpy as np
 
 
@@ -19,11 +20,12 @@ def similarity(v1, v2):
 
 
 def dynaprog_summarizer(sents, article_vec):
-    '''Given a list of sentences, find some sentences to represent the text.
+    '''Given vectors of sentences, find some sentences to represent the text.
     Args:
-        sentences (:obj:`list` of :obj:`str`): a list of sentences.
+        sentences (`np.array`): vectors of sentences.
+        article_vector (`np.array`): the vector of whole article.
     Returns:
-        :obj:`np.array` of :obj:`str`: a list of summary sentences.
+        `np.array`: a list of index number of summary sentences.
     '''
     score_map = []
     best = None
@@ -65,36 +67,43 @@ def dynaprog_summarizer(sents, article_vec):
         None
 
 
-def cluster_summarizer(sents_vector, article_vector, n_summary, score_reward):
-    '''Given a list of sentences, find `n_summary` sentences to summarize the text.
+def cluster_summarizer(sents_vector, article_vector, n_summary='auto', score_reward=1.0):
+    '''Given vectors of sentences, find `n_summary` sentences to summarize the text.
     Args:
-        sentences (:obj:`list` of :obj:`str`): a list of sentences.
-        n_summary (str): the number of sentences to be put into summary.
+        sents_vector (`np.array`): vectors of sentences.
+        article_vector (`np.array`): the vector of whole article.
+        n_summary (int): the number of sentences to be chosen into summary.
     Returns:
-        :obj:`np.array` of :obj:`str`: a list of summary sentences.
+        `np.array`: a list of index number of summary sentences.
     '''
-    n_dummy = min(len(sents_vector), int(n_summary * 2))
-    algo = AgglomerativeClustering(n_clusters=n_dummy)
+    if n_summary == 'auto':  # auto estimate the number of summaries
+        ms = MeanShift(bandwidth=estimate_bandwidth(sents_vector)).fit(sents_vector)
+        n_summary = len(set(ms.labels_))
+    n_cluster = min(len(sents_vector), int(n_summary * 2))
+    algo = AgglomerativeClustering(n_clusters=n_cluster, linkage='complete', affinity='cosine')
     cluster = algo.fit_predict(sents_vector)
-    scores = similarity(sents_vector, article_vector) * score_reward
-    clus_score = [np.mean(scores[cluster == c]) for c in range(n_dummy)]
+
+    centroids = np.zeros((n_cluster, sents_vector.shape[1]))
+    for i in range(n_cluster):
+        centroids[i, :] = np.mean(sents_vector[cluster == i], axis=0)
+    clus_score = similarity(centroids, article_vector)
     select_cluster = np.argsort(clus_score)[::-1][:n_summary]
 
     summary = np.zeros(n_summary, dtype=int)
     for i, c in enumerate(select_cluster):
-        centroid = np.mean(sents_vector[cluster == 5], axis=0)
-        score_inclus = similarity(sents_vector[cluster == 5], centroid)
+        score_inclus = similarity(sents_vector[cluster == c], centroids[c])
         summary[i] = np.where(cluster == c)[0][np.argmax(score_inclus)]
     return np.sort(summary)
 
 
-def maximal_summarizer(sents_vector, article_vector, n_summary, score_reward):
-    '''Given a list of sentences, find `n_summary` sentences to summarize the text.
+def maximal_summarizer(sents_vector, article_vector, n_summary=5, score_reward=1.0):
+    '''Given vectors of sentences, find `n_summary` sentences to summarize the text.
     Args:
-        sentences (:obj:`list` of :obj:`str`): a list of sentences.
-        n_summary (str): the number of sentences to be put into summary.
+        sentences (`np.array`): vectors of sentences.
+        article_vector (`np.array`): the vector of whole article.
+        n_summary (int): the number of sentences to be chosen into summary.
     Returns:
-        :obj:`np.array` of :obj:`str`: a list of summary sentences.
+        `np.array`: a list of index number of summary sentences.
     '''
     scores = similarity(sents_vector, article_vector) * score_reward
     best = np.argsort(scores)[-1:-(n_summary + 1):-1]

@@ -73,7 +73,10 @@ def tidify(string):
         replace(u'\u201b', '\'').replace(u'\u201c', '"').replace(u'\u201d', '"'). \
         replace(u'\u201e', '"').replace(u'\u201f', '"').replace(u'\u2024', '.'). \
         replace(u'\n', '').replace(u'\r', '').replace(u'《', '').replace(u'》', ''). \
-        replace(u'【', '').replace(u'】', '').replace(u'「', '').replace(u'」', '')
+        replace(u'【', '').replace(u'】', '').replace(u'「', '').replace(u'」', ''). \
+        replace('\t', u'。')
+    # remove private use area
+    string = ''.join([ch for ch in string if ord(ch) < 0xE000 or ord(ch) > 0xF8FF])
     string = re.sub(' +', ' ', string)
     string = re.sub('\(.+?\)', '', string)
     string = re.sub(u'（.+?）', '', string)
