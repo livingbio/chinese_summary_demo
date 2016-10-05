@@ -186,12 +186,18 @@ def chunking_sent(sentence):
                     continue
                 if cut >= 20 and len(sentence) - cut >= 20:  # two parts have at least 20 characters
                     break
-            chunks = ChineseTree(sentence[:cut]).chunking()
             # print sentence[:cut]
+            if zhlen(sentence[:cut]) < 30:
+                chunks = [sentence[:cut]]
+            else:
+                chunks = ChineseTree(sentence[:cut]).chunking()
             # print 'chunking len={} time={!s}'.format(zhlen(sentence[:cut]), dt.now() - start)
             start = dt.now()
-            chunks += ChineseTree(sentence[(cut + 1):]).chunking()
             # print sentence[(cut + 1):]
+            if zhlen(sentence[(cut + 1):]) < 30:
+                chunks.append(sentence[(cut + 1):])
+            else:
+                chunks += ChineseTree(sentence[(cut + 1):]).chunking()
             # print 'chunking len={} time={!s}'.format(zhlen(sentence[(cut + 1):]), dt.now() - start)
         else:
             chunks = ChineseTree(sentence).chunking()

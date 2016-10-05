@@ -93,7 +93,7 @@ function update(source, svg) {
     nodeEnter.append("circle")
         .attr("r", 10)
         .style("fill", function(d) {
-            return d.must_have ?  "#ff0" : "#fff" })
+            return d.root ?  "#ff0" : "#fff" })
         .style("stroke", function(d) {
             return d.merged ? "#f00" : "#048" });
 

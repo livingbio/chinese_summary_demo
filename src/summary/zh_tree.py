@@ -79,18 +79,17 @@ must_have_child = [
     {
         'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
         'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
-        'tmod',
+        'amod', 'tmod',
     },
     {
         'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
         'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
-        'tmod', 'conj', 'cc',
+        'amod', 'tmod', 'conj', 'cc', 'ccomp',
     },
     {
         'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
         'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
-        'tmod', 'conj', 'cc',
-        'ccomp', 'prep',
+        'amod', 'tmod', 'conj', 'cc', 'ccomp', 'prep',
     }
 ]
 
@@ -104,6 +103,7 @@ class ParseNode(object):
         self.children = list()
         self.mergelist = list()
         self.merged = False
+        self.size = 1
 
     def __unicode__(self):
         s = u'[{}] {}: POS={}, Parent={}, Relation={}, Merge={}'
@@ -126,6 +126,7 @@ class ParseNode(object):
             'children': list(self.children),
             'mergelist': list(self.mergelist),
             'merged': self.merged,
+            'size': self.size,
         }
         return d
 
@@ -163,6 +164,7 @@ class TreeNode(object):
         tree['depth'] = depth
         tree['children'] = [self.create(nodes, ch, depth + 1)
                             for ch in tree['children'] if nodes[ch] is not None]
+        tree['size'] += sum([ch['size'] for ch in tree['children']])
         return tree
 
     def roots(self):
@@ -170,10 +172,15 @@ class TreeNode(object):
         for tree in bfs(self.tree):
             if tree['rel'] == 'root':
                 roots_id.append(tree['id'])
-            elif tree['rel'] in ('conj', 'ccomp', 'dep') and len(tree['children']) >= 5:
+                tree['root'] = True
+            elif tree['rel'] in ('conj', 'ccomp') and tree['size'] >= 20:
                 roots_id.append(tree['id'])
-            elif tree['rel'] == 'prep' and len(tree['children']) >= 5:
+                tree['root'] = True
+            elif tree['rel'] == 'prep' and tree['size'] >= 20:
                 roots_id.append(tree['parent'])
+                tree['root'] = True
+            else:
+                tree['root'] = False
         roots = []
         roots_id = set(roots_id)
         for tree in bfs(self.tree):
@@ -214,11 +221,18 @@ class ChineseTree(object):
             nodes[i].prev = nodes[i - 1] if i > 0 else nodes[-1]
             nodes[p].children.append(i)
         self.nodes = nodes
+        # 解決標點符號位置的問題
+        for n in nodes:
+            if n.rel == 'punct' and n.next.parent.id == n.prev.id:
+                n.parent.children.remove(n.id)
+                n.parent = n.prev
+                n.parent.children.append(n.id)
 
         self.analyse_merge()  # prepare 'merged' and 'mergelist' attributes
         self.execute_merge()  # if self.isMerging, merge nodes by 'mergelist'
         self.root_index = nodes[0].children[0]
         self.tree = TreeNode(nodes, self.root_index, self.isNameWithPOS)
+        self.tree.roots()
 
     def __unicode__(self):
         nonempty = [n for n in self.nodes[1:] if n]
@@ -282,6 +296,7 @@ class ChineseTree(object):
                 pass
         namelist = sorted(namelist)
         n.name = '_'.join([name for _, name in namelist])
+        n.size += sum([nodes[ch].size for ch in mergelist])
         # 收集subtree出現過的postag, relation以供後續分析
         for ch in mergelist:
             n.pos_list.extend(nodes[ch].pos_list)
@@ -363,7 +378,7 @@ class ChineseTree(object):
                 names[i] = (0, '', '')
         ids = set([i for i, _, _ in names])
         for n in self.nodes[1:]:
-            if n and n.name == u'、' and n.next.id in ids and n.prev.id in ids:
+            if n and n.id not in ids and n.name == u'、' and n.next.id in ids and n.prev.id in ids:
                 names.append((n.id, n.name, n.rel))
         names = sorted([n for n in names if n[0] > 0])
         while names and names[0][2] in ('punct', 'mark', 'advmod'):
@@ -390,6 +405,8 @@ class ChineseTree(object):
     def append_treenode(self, ids, trees, tree, child_rule):
         if tree['id'] in ids:
             return
+        # print '    -add-', tree['id'], tree['rel'], tree['name']
+        # print '        -ch-', ' '.join([ch['name'] for ch in tree['children']])
         trees.append(tree)
         ids.append(tree['id'])
         has_one_conj = False
@@ -412,8 +429,9 @@ class ChineseTree(object):
 
     def rule_chunking(self, root):
         chunks = list()
-        for child_rule in must_have_child:
+        for i, child_rule in enumerate(must_have_child):
             ids, trees = list(), list()
+            # print '------- rule {} -------'.format(i + 1)
             self.append_treenode(ids, trees, root, child_rule)
             depth = 1
             for tree in bfs(root):
@@ -423,9 +441,11 @@ class ChineseTree(object):
                 if tree['depth'] > depth:
                     depth = tree['depth']
                     chunks.append(self.generate_names(trees))
+                    # print '    -gen-', chunks[-1]
                 if n.prev.rel == 'punct' and n.pos_list[0][1] in ('ADP', 'ADV') \
                     and n.prev.prev.pos_list[-1][1] != 'PRT':
                     chunks.append(self.generate_names(trees))
+                    # print '    -gen-', chunks[-1]
                 if tree['rel'] in rule_connect:
                     self.append_treenode(ids, trees, tree, child_rule)
             chunks.append(self.generate_names(trees))
