@@ -52,6 +52,7 @@ rel_should_merge = {
     # 'nsubj': 'nominal subject',  # (愛斯基摩人和維京人)定居在此
     'nsubjpass': 'passive nominal subject',  # (系統)被破壞
     'nummod': 'numeric modifier',  # (四百五十萬)美元
+    'ordmod': 'ordmod',
     # 'prep': 'prep',
     # 'parataxis': 'parataxis',
     # 'punct': 'punctuation',
@@ -78,10 +79,17 @@ must_have_child = [
     {
         'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
         'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
+        'tmod',
     },
     {
         'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
         'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
+        'tmod', 'conj', 'cc',
+    },
+    {
+        'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
+        'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
+        'tmod', 'conj', 'cc',
         'ccomp', 'prep',
     }
 ]
@@ -190,7 +198,6 @@ class ChineseTree(object):
         sentence = sentence.replace(' ', '')
         start = dt.now()
         raw = Parser('zh').parse(sentence)[0]
-        print '   parse a sentence len={}, time={!s}'.format(len(sentence), dt.now() - start)
         n_nodes = len(raw) + 1
         nodes = [ParseNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
         for n in raw:
@@ -199,7 +206,7 @@ class ChineseTree(object):
             if n['rel'] == 'punct' and n['parent'] == 0:
                 p = i - 1
             nodes[i].id = n['id']
-            nodes[i].name = n['name'].replace('_', ' ')
+            nodes[i].name = n['name'].replace('_', ' ').replace(',', u'，')
             nodes[i].pos = n['pos']
             nodes[i].parent = nodes[p]
             nodes[i].rel = n['rel']
@@ -232,6 +239,9 @@ class ChineseTree(object):
                 n.parent.mergelist.append(n.id)
             elif n.rel == 'nsubj' and len(n.children) == 0:
                 n.parent.mergelist.append(n.id)
+            elif n.rel == 'conj' and n.next.rel == 'cc' and len(n.parent.children) == 2:
+                n.parent.mergelist.append(n.id)
+                n.parent.mergelist.append(n.next.id)
 
         for n in nodes[1:]:
             if not n.mergelist:  # 如果mergelist是空的
@@ -351,6 +361,10 @@ class ChineseTree(object):
                 names[i] = (0, '', '')
             if names[i][2] == 'punct' and names[i][1] == u'、' and names[i + 1][2] != 'conj':
                 names[i] = (0, '', '')
+        ids = set([i for i, _, _ in names])
+        for n in self.nodes[1:]:
+            if n and n.name == u'、' and n.next.id in ids and n.prev.id in ids:
+                names.append((n.id, n.name, n.rel))
         names = sorted([n for n in names if n[0] > 0])
         while names and names[0][2] in ('punct', 'mark', 'advmod'):
             del names[0]
@@ -374,13 +388,23 @@ class ChineseTree(object):
         return '_'.join([nn for _, nn, _ in names])
 
     def append_treenode(self, ids, trees, tree, child_rule):
+        if tree['id'] in ids:
+            return
         trees.append(tree)
         ids.append(tree['id'])
         has_one_conj = False
+        if len(tree['children']) == 2:
+            a, b = tree['children']
+            if a['rel'] == 'conj' and not a['children'] and b['rel'] == 'cc' and not b['children']:
+                self.append_treenode(ids, trees, a, child_rule)
+                self.append_treenode(ids, trees, b, child_rule)
+                has_one_conj = True
         for ch in tree['children']:
             if ch['rel'] in child_rule:
                 self.append_treenode(ids, trees, ch, child_rule)
             elif ch['rel'] == 'prep' and len(ch['children']) == 0:
+                self.append_treenode(ids, trees, ch, child_rule)
+            elif ch['rel'] == 'mark' and ch['pos'] == 'PRT' and len(ch['children']) == 0:
                 self.append_treenode(ids, trees, ch, child_rule)
             elif not has_one_conj and ch['rel'] == 'conj' and ch['pos'] == 'VERB':
                 has_one_conj = True
