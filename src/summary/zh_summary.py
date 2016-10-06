@@ -188,25 +188,25 @@ def chunking_sent(sentence):
                         cut2 = next(p for p, _ in split_point[::-1] if p < cut)
                     cut += 1
                     break
-            print sentence[:cut2]
+            # print sentence[:cut2]
             if zhlen(sentence[:cut2]) < 30:
                 chunks = [sentence[:cut2]]
             else:
                 chunks = ChineseTree(sentence[:cut2]).chunking()
-            print 'chunking len={} time={!s}'.format(zhlen(sentence[:cut2]), dt.now() - start)
+            # print 'chunking len={} time={!s}'.format(zhlen(sentence[:cut2]), dt.now() - start)
             start = dt.now()
-            print sentence[cut:]
+            # print sentence[cut:]
             if zhlen(sentence[cut:]) < 30:
                 chunks.append(sentence[cut:])
             else:
                 chunks += ChineseTree(sentence[cut:]).chunking()
-            print 'chunking len={} time={!s}'.format(zhlen(sentence[cut:]), dt.now() - start)
+            # print 'chunking len={} time={!s}'.format(zhlen(sentence[cut:]), dt.now() - start)
         else:
             chunks = ChineseTree(sentence).chunking()
-            print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
+            # print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
     else:
         chunks = ChineseTree(sentence).chunking()
-        print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
+        # print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
     return chunks
 
 
