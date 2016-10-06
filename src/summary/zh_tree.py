@@ -76,9 +76,14 @@ rule_connect = {
 
 must_have_child = [
     {
+        'punct', 'loc', 'advmod', 'case', 'clf', 'dobj',
+        'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
+        'amod', 'tmod', 'ccomp',
+    },
+    {
         'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',
         'nsubj', 'ba', 'relcl', 'assmod', 'neg', 'nn', 'cop',
-        'amod', 'tmod',
+        'amod', 'tmod', 'ccomp',
     },
     {
         'punct', 'loc', 'dep', 'advmod', 'case', 'clf', 'dobj',

@@ -160,60 +160,63 @@ def summary_text(raw_text, n_summary=5, algorithm=2):
     return np.array(sents[index])
 
 dont_split_word = {
-    u'也', u'但', u'仍', u'較', u'再',
+    u'也', u'但', u'仍', u'較', u'再', u'為',
 }
 
 
-def chunking_sent(sentence):
+def split_sentence(sentence):
+    tagtext = zh.tw_postag(sentence)
+    split_point = []
+    for i in range(2, len(tagtext)):
+        t1 = universal_tagset[tagtext[i - 2][1]]
+        t2 = universal_tagset[tagtext[i - 1][1]]
+        t3 = universal_tagset[tagtext[i][1]]
+        w1, w2, w3 = tagtext[i - 2][0], tagtext[i - 1][0], tagtext[i][0]
+        if (t1 in ('VERB', 'NOUN') and t2 == '.' and t3 in ('ADV', 'ADP')) or \
+            (t1 == 'PRT' and t2 == '.' and t3 == 'NOUN') and w3 not in dont_split_word:
+            split_point.append((sentence.find(w1 + w2 + w3) + len(w1), t1))
+    if not split_point:
+        return [sentence]  # no way to split the sentence
+
+    splitted = []
+    for i, (cut, cut_pos) in enumerate(split_point[::-1]):
+        if cut < 20 or len(sentence) - cut < 20:
+            continue
+        if cut_pos == 'PRT' and i < len(split_point) - 1:
+            cut2 = next(p for p, _ in split_point[::-1] if p < cut)
+        else:
+            cut2 = cut
+        splitted.append(sentence[(cut + 1):])
+        sentence = sentence[:cut2]
+    splitted.append(sentence)
+    return splitted[::-1]
+
+
+def chunking_sent(sentence, forceFirstSubSent=False):
     start = dt.now()
     length = zhlen(sentence)
     if length < 30:
         return [sentence]
-    if length > 70:
-        tagtext = zh.tw_postag(sentence)
-        split_point = []
-        for i in range(2, len(tagtext)):
-            t1 = universal_tagset[tagtext[i - 2][1]]
-            t2 = universal_tagset[tagtext[i - 1][1]]
-            t3 = universal_tagset[tagtext[i][1]]
-            w1, w2, w3 = tagtext[i - 2][0], tagtext[i - 1][0], tagtext[i][0]
-            if (t1 in ('VERB', 'NOUN') and t2 == '.' and t3 in ('ADV', 'ADP')) or \
-                (t1 == 'PRT' and t2 == '.' and t3 == 'NOUN') and w3 not in dont_split_word:
-                split_point.append((sentence.find(w1 + w2 + w3) + len(w1), t1))
-        if split_point:
-            for cut, cut_pos in split_point[::-1]:
-                if cut >= 20 and len(sentence) - cut >= 20:  # two parts have at least 20 characters
-                    cut2 = cut
-                    if cut_pos == 'PRT' and cut != split_point[0][0]:
-                        cut2 = next(p for p, _ in split_point[::-1] if p < cut)
-                    cut += 1
-                    break
-            # print sentence[:cut2]
-            if zhlen(sentence[:cut2]) < 30:
-                chunks = [sentence[:cut2]]
-            else:
-                chunks = ChineseTree(sentence[:cut2]).chunking()
-            # print 'chunking len={} time={!s}'.format(zhlen(sentence[:cut2]), dt.now() - start)
-            start = dt.now()
-            # print sentence[cut:]
-            if zhlen(sentence[cut:]) < 30:
-                chunks.append(sentence[cut:])
-            else:
-                chunks += ChineseTree(sentence[cut:]).chunking()
-            # print 'chunking len={} time={!s}'.format(zhlen(sentence[cut:]), dt.now() - start)
+    if length < 70:
+        return ChineseTree(sentence).chunking()
+    chunks = []
+    split_sents = split_sentence(sentence)
+    if forceFirstSubSent:
+        return ChineseTree(split_sents[0]).chunking()
+    for subsent in split_sents:
+        if zhlen(subsent) < 30:
+            chunks.append(subsent)
         else:
-            chunks = ChineseTree(sentence).chunking()
-            # print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
-    else:
-        chunks = ChineseTree(sentence).chunking()
-        # print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
+            chunks += ChineseTree(subsent).chunking()
     return chunks
 
 
 def shorten_sents(summary):
     shorten = []
+    first_sent = True
     for vec, s in zip(summary_data['summary_vector'], summary):
-        chunks = chunking_sent(s)
+        chunks = chunking_sent(s, first_sent)
+        first_sent = False
         if chunks:
             score = similarity(w2v.sentvec([ch.replace('_', '') for ch in chunks]), summary_data['article_vector'])
             score = adjust_by_nouns(score, chunks)
