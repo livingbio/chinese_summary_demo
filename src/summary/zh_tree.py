@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-from parser_client import Parser
+from gliacloud_api_client import Parser
 import re
-from datetime import datetime as dt
 
 
 rel_should_merge = {
@@ -204,7 +203,6 @@ class ChineseTree(object):
         sentence = re.sub('([A-Za-z]) ([A-Za-z])', '\\1_\\2', sentence)
         sentence = re.sub('([A-Za-z]) ([A-Za-z])', '\\1_\\2', sentence)
         sentence = sentence.replace(' ', '')
-        start = dt.now()
         raw = Parser('zh').parse(sentence)[0]
         n_nodes = len(raw) + 1
         nodes = [ParseNode() for _ in range(n_nodes)]  # nodes[0] is dummy root

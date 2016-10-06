@@ -44,3 +44,4 @@ requests
 numpy
 scikit-learn
 git+ssh://git@github.com/livingbio/zhconvert.git#egg=zhconvert
+git+ssh://git@github.com/livingbio/gliacloud_api_client.git

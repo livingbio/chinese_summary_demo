@@ -2,7 +2,7 @@
 import numpy as np
 import re
 from zh_tree import ChineseTree
-from word2vec_client import Word2Vec
+from gliacloud_api_client import Word2Vec
 from summarizer import similarity, dynaprog_summarizer, cluster_summarizer, maximal_summarizer
 from zhconvert import ZHConvert
 from datetime import datetime as dt
