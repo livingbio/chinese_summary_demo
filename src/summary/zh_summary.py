@@ -160,7 +160,7 @@ def summary_text(raw_text, n_summary=5, algorithm=2):
     return np.array(sents[index])
 
 dont_split_word = {
-    u'也', u'但', u'仍', u'較',
+    u'也', u'但', u'仍', u'較', u'再',
 }
 
 
@@ -176,35 +176,37 @@ def chunking_sent(sentence):
             t1 = universal_tagset[tagtext[i - 2][1]]
             t2 = universal_tagset[tagtext[i - 1][1]]
             t3 = universal_tagset[tagtext[i][1]]
+            w1, w2, w3 = tagtext[i - 2][0], tagtext[i - 1][0], tagtext[i][0]
             if (t1 in ('VERB', 'NOUN') and t2 == '.' and t3 in ('ADV', 'ADP')) or \
-                (t1 == 'PRT' and t2 == '.' and t3 == 'NOUN'):
-                w1, w2, w3 = tagtext[i - 2][0], tagtext[i - 1][0], tagtext[i][0]
-                split_point.append((sentence.find(w1 + w2 + w3) + len(w1), w3))
+                (t1 == 'PRT' and t2 == '.' and t3 == 'NOUN') and w3 not in dont_split_word:
+                split_point.append((sentence.find(w1 + w2 + w3) + len(w1), t1))
         if split_point:
-            for cut, cut_word in split_point[::-1]:
-                if cut_word in dont_split_word:
-                    continue
+            for cut, cut_pos in split_point[::-1]:
                 if cut >= 20 and len(sentence) - cut >= 20:  # two parts have at least 20 characters
+                    cut2 = cut
+                    if cut_pos == 'PRT' and cut != split_point[0][0]:
+                        cut2 = next(p for p, _ in split_point[::-1] if p < cut)
+                    cut += 1
                     break
-            # print sentence[:cut]
-            if zhlen(sentence[:cut]) < 30:
-                chunks = [sentence[:cut]]
+            print sentence[:cut2]
+            if zhlen(sentence[:cut2]) < 30:
+                chunks = [sentence[:cut2]]
             else:
-                chunks = ChineseTree(sentence[:cut]).chunking()
-            # print 'chunking len={} time={!s}'.format(zhlen(sentence[:cut]), dt.now() - start)
+                chunks = ChineseTree(sentence[:cut2]).chunking()
+            print 'chunking len={} time={!s}'.format(zhlen(sentence[:cut2]), dt.now() - start)
             start = dt.now()
-            # print sentence[(cut + 1):]
-            if zhlen(sentence[(cut + 1):]) < 30:
-                chunks.append(sentence[(cut + 1):])
+            print sentence[cut:]
+            if zhlen(sentence[cut:]) < 30:
+                chunks.append(sentence[cut:])
             else:
-                chunks += ChineseTree(sentence[(cut + 1):]).chunking()
-            # print 'chunking len={} time={!s}'.format(zhlen(sentence[(cut + 1):]), dt.now() - start)
+                chunks += ChineseTree(sentence[cut:]).chunking()
+            print 'chunking len={} time={!s}'.format(zhlen(sentence[cut:]), dt.now() - start)
         else:
             chunks = ChineseTree(sentence).chunking()
-            # print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
+            print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
     else:
         chunks = ChineseTree(sentence).chunking()
-        # print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
+        print 'chunking len={} time={!s}'.format(zhlen(sentence), dt.now() - start)
     return chunks
 
 

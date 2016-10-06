@@ -143,6 +143,7 @@ def bfs(tree):
             bfs_queue.append(child)
     return retbfs_queue
 
+
 def dfs(tree):
     dfs_queue = []
     dfs_stack = [tree]
@@ -207,6 +208,7 @@ class ChineseTree(object):
         raw = Parser('zh').parse(sentence)[0]
         n_nodes = len(raw) + 1
         nodes = [ParseNode() for _ in range(n_nodes)]  # nodes[0] is dummy root
+        self.puncts = []
         for n in raw:
             i = n['id']
             p = n['parent']
@@ -217,16 +219,22 @@ class ChineseTree(object):
             nodes[i].pos = n['pos']
             nodes[i].parent = nodes[p]
             nodes[i].rel = n['rel']
+            if n['rel'] == 'punct':
+                self.puncts.append(nodes[i])
             nodes[i].next = nodes[i + 1] if i < n_nodes - 1 else nodes[0]
             nodes[i].prev = nodes[i - 1] if i > 0 else nodes[-1]
             nodes[p].children.append(i)
         self.nodes = nodes
         # 解決標點符號位置的問題
-        for n in nodes:
-            if n.rel == 'punct' and n.next.parent.id == n.prev.id:
+        for n in self.puncts:
+            p = n.next
+            while p.parent and p.parent.id != n.prev.id:
+                p = p.parent
+            if p.rel != 'root':
                 n.parent.children.remove(n.id)
                 n.parent = n.prev
                 n.parent.children.append(n.id)
+                n.parent.children = sorted(n.parent.children)
 
         self.analyse_merge()  # prepare 'merged' and 'mergelist' attributes
         self.execute_merge()  # if self.isMerging, merge nodes by 'mergelist'
@@ -254,6 +262,10 @@ class ChineseTree(object):
             elif n.rel == 'nsubj' and len(n.children) == 0:
                 n.parent.mergelist.append(n.id)
             elif n.rel == 'conj' and n.next.rel == 'cc' and len(n.parent.children) == 2:
+                n.parent.mergelist.append(n.id)
+                n.parent.mergelist.append(n.next.id)
+            elif n.rel == 'cc' and n.next.rel == 'dep' and \
+                len(n.parent.children) == 2 and len(n.next.children) == 0:
                 n.parent.mergelist.append(n.id)
                 n.parent.mergelist.append(n.next.id)
 
