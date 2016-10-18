@@ -192,11 +192,18 @@ def split_sentence(sentence):
     return splitted[::-1]
 
 
+def newline_hint(string):
+    string = re.sub(u'([A-Za-z\.]) ([A-Za-z\.])', u'\\1_\\2', string.replace('_', ''))
+    string = re.sub(u'([A-Za-z\.]) ([A-Za-z\.])', u'\\1_\\2', string)
+    seg = [w.replace('_', ' ') for w in zh.tw_segment(t)]
+    return '_'.join(seg)
+
+
 def chunking_sent(sentence, forceFirstSubSent=False):
     start = dt.now()
     length = zhlen(sentence)
     if length < 30:
-        return [sentence]
+        return [newline_hint(sentence)]
     if length < 70:
         return ChineseTree(sentence).chunking()
     chunks = []
@@ -205,7 +212,7 @@ def chunking_sent(sentence, forceFirstSubSent=False):
         return ChineseTree(split_sents[0]).chunking()
     for subsent in split_sents:
         if zhlen(subsent) < 30:
-            chunks.append(subsent)
+            chunks.append(newline_hint(subsent))
         else:
             chunks += ChineseTree(subsent).chunking()
     return chunks
