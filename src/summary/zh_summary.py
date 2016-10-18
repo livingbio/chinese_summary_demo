@@ -195,7 +195,7 @@ def split_sentence(sentence):
 def newline_hint(string):
     string = re.sub(u'([A-Za-z\.]) ([A-Za-z\.])', u'\\1_\\2', string.replace('_', ''))
     string = re.sub(u'([A-Za-z\.]) ([A-Za-z\.])', u'\\1_\\2', string)
-    seg = [w.replace('_', ' ') for w in zh.tw_segment(t)]
+    seg = [w.replace('_', ' ') for w in zh.tw_segment(string)]
     return '_'.join(seg)
 
 
