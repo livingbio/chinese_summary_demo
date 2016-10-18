@@ -40,6 +40,7 @@ fake-factory==0.5.3
 # http://www.fabfile.org/
 Fabric==1.10.2
 
+Pillow
 requests
 numpy
 scikit-learn

@@ -79,3 +79,4 @@ CACHE
 # Coverage
 .coverage
 nohup.out
+chdemo
