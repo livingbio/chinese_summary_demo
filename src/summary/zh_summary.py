@@ -234,7 +234,7 @@ def summary_text(raw_text, n_summary=5, algorithm=2, shorten=True):
         index = maximal_summarizer(sents_vector, article_vector, n_summary, score_reward)
 
     if shorten:
-        return shorten_sents(sents[index])
+        return shorten_sents(sents[index], article_vector, special_nouns)
     else:
         summary = []
         for i in index:
