@@ -132,7 +132,7 @@ function callback(data) {
             //console.log(x[j][1].replace(/\_/g, ""));
         }
         y += "</table>";
-        content += "<tr><td>" + data.short[i][0] + "</td>";
+        content += "<tr><td>" + String(data.short[i][0]).replace(/\_/g, "") + "</td>";
         content += "<td>" + y + "</td></tr>";
     }
     content += "</table>";

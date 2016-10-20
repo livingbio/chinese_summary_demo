@@ -6,14 +6,11 @@ from datetime import datetime as dt
 
 
 def parse_api(request, num='0'):
-    algorithm = int(num)
     raw_text = request.POST['text']
     start = dt.now()
-    summary = summary_text(raw_text, 5, algorithm)
+    summary = summary_text(raw_text, algorithm=int(num), shorten=False)
+    shorten = summary_text(raw_text, algorithm=int(num))
     print 'summary', dt.now() - start
-    start = dt.now()
-    shorten = shorten_sents(summary)
-    print 'shorten', dt.now() - start
     if request.POST['tree'] == 'true':
         mergtree = ChineseTree(summary[0], name_with_pos=True)
         tree_merg = mergtree.tree.tree

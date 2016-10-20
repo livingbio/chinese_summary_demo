@@ -102,9 +102,7 @@ def find_special_nouns(raw_text):
     return proper_noun
 
 
-def adjust_by_nouns(score, sentences, proper_nouns=None, growth=1.05):
-    if not proper_nouns:
-        proper_nouns = summary_data['special_nouns']
+def adjust_by_nouns(score, sentences, proper_nouns, growth=1.05):
     for i, s in enumerate(sentences):
         words = s.split()
         n_proper_nouns = sum([w in proper_nouns for w in words])
@@ -125,39 +123,6 @@ def adjust_by_len(score, sentences, limit=30, decay=0.998):
         score[i] *= panelty
     return score
 
-
-def summary_text(raw_text, n_summary=5, algorithm=2):
-    '''Given a text string, split it into sentences.
-    Find `n_summary` sentences to summarize the text.
-    Args:
-        raw_text (str): a string consisted of several sentences.
-        n_summary (str): the number of sentences to be put into summary.
-        algorithm (int): choose an algorithm to summarize.
-    Returns:
-        :obj:`np.array` of :obj:`str`: a list of summary sentences.
-    '''
-    raw_text = tidify(raw_text.replace(u'\n\n', u'。\n\n'))
-    summary_data['special_nouns'] = find_special_nouns(raw_text)
-    # print '>>> Proper Nouns', '/'.join(summary_data['special_nouns'])
-
-    sents = np.array([s for s in sent_tokenize(raw_text) if zhlen(s) > 10])
-    score_reward = adjust_by_nouns([1.0] * len(sents), sents, growth=1.01)
-    # score_reward = np.ones(len(sents))
-    sents_vector = w2v.sentvec(sents)
-    article_vector = np.sum(sents_vector, axis=0)
-    summary_data['article_vector'] = article_vector
-
-    if algorithm == 0:
-        index = dynaprog_summarizer(sents_vector, article_vector)
-    elif algorithm == 1:
-        if len(sents) <= n_summary:
-            index = np.arange(len(sents))
-        else:
-            index = cluster_summarizer(sents_vector, article_vector, n_summary, score_reward)
-    elif algorithm == 2:
-        index = maximal_summarizer(sents_vector, article_vector, n_summary, score_reward)
-    summary_data['summary_vector'] = sents_vector[index]
-    return np.array(sents[index])
 
 dont_split_word = {
     u'也', u'但', u'仍', u'較', u'再', u'為',
@@ -218,17 +183,60 @@ def chunking_sent(sentence, forceFirstSubSent=False):
     return chunks
 
 
-def shorten_sents(summary):
+def shorten_sents(summary, ref_vec=None, special_nouns=None):
     shorten = []
     first_sent = True
-    for vec, s in zip(summary_data['summary_vector'], summary):
+    for s in summary:
+        if ref_vec is None:
+            ref_vec = w2v.sentvec(s)[0]
         chunks = chunking_sent(s, first_sent)
         first_sent = False
         if chunks:
-            score = similarity(w2v.sentvec([ch.replace('_', '') for ch in chunks]), summary_data['article_vector'])
-            score = adjust_by_nouns(score, chunks)
+            score = similarity(w2v.sentvec([ch.replace('_', '') for ch in chunks]), ref_vec)
+            if special_nouns:
+                score = adjust_by_nouns(score, chunks, special_nouns)
             score = adjust_by_len(score, chunks)
             shorten.append([ch for ch in zip(score, chunks) if not np.isnan(ch[0])])
         else:
-            shorten.append([(1.0, s)])
+            shorten.append([(1.0, newline_hint(s))])
     return np.array(shorten)
+
+
+def summary_text(raw_text, n_summary=5, algorithm=2, shorten=True):
+    '''Given a text string, split it into sentences.
+    Find `n_summary` sentences to summarize the text.
+    Args:
+        raw_text (str): a string consisted of several sentences.
+        n_summary (str): the number of sentences to be put into summary.
+        algorithm (int): choose an algorithm to summarize.
+        shorten (bool): return shorten summaries if shorten=True
+    Returns:
+        :obj:`np.array` of :obj:`str`: a list of summary sentences.
+    '''
+    raw_text = tidify(raw_text.replace(u'\n\n', u'。\n\n'))
+    special_nouns = find_special_nouns(raw_text)
+    # print '>>> Proper Nouns', '/'.join(special_nouns)
+
+    sents = np.array([s for s in sent_tokenize(raw_text) if zhlen(s) > 10])
+    score_reward = adjust_by_nouns([1.0] * len(sents), sents, special_nouns, growth=1.01)
+    # score_reward = np.ones(len(sents))
+    sents_vector = w2v.sentvec(sents)
+    article_vector = np.sum(sents_vector, axis=0)
+
+    if algorithm == 0:
+        index = dynaprog_summarizer(sents_vector, article_vector)
+    elif algorithm == 1:
+        if len(sents) <= n_summary:
+            index = np.arange(len(sents))
+        else:
+            index = cluster_summarizer(sents_vector, article_vector, n_summary, score_reward)
+    elif algorithm == 2:
+        index = maximal_summarizer(sents_vector, article_vector, n_summary, score_reward)
+
+    if shorten:
+        return shorten_sents(sents[index])
+    else:
+        summary = []
+        for i in index:
+            summary.append((similarity(sents_vector[i], article_vector), newline_hint(sents[i])))
+        return np.array(summary)
