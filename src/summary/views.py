@@ -12,9 +12,9 @@ def parse_api(request, num='0'):
     shorten = summary_text(raw_text, algorithm=int(num))
     print 'summary', dt.now() - start
     if request.POST['tree'] == 'true':
-        mergtree = ChineseTree(summary[0], name_with_pos=True)
+        mergtree = ChineseTree(summary[0][1].replace('_', ''), name_with_pos=True)
         tree_merg = mergtree.tree.tree
-        origtree = ChineseTree(summary[0], merging=False, name_with_pos=True)
+        origtree = ChineseTree(summary[0][1].replace('_', ''), merging=False, name_with_pos=True)
         tree_orig = origtree.tree.tree
     else:
         origtree = ''

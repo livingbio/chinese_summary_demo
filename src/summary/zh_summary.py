@@ -160,7 +160,7 @@ def split_sentence(sentence):
 def newline_hint(string):
     string = re.sub(u'([A-Za-z\.]) ([A-Za-z\.])', u'\\1_\\2', string.replace('_', ''))
     string = re.sub(u'([A-Za-z\.]) ([A-Za-z\.])', u'\\1_\\2', string)
-    seg = [w.replace('_', ' ') for w in zh.tw_segment(string)]
+    seg = [w.replace('_', ' ') for w in (zh.tw_segment(string) or [])]
     return '_'.join(seg)
 
 
@@ -217,7 +217,7 @@ def summary_text(raw_text, n_summary=5, algorithm=2, shorten=True):
     special_nouns = find_special_nouns(raw_text)
     # print '>>> Proper Nouns', '/'.join(special_nouns)
 
-    sents = np.array([s for s in sent_tokenize(raw_text) if zhlen(s) > 10])
+    sents = np.array([s.strip() for s in sent_tokenize(raw_text) if s.strip()])
     score_reward = adjust_by_nouns([1.0] * len(sents), sents, special_nouns, growth=1.01)
     # score_reward = np.ones(len(sents))
     sents_vector = w2v.sentvec(sents)
