@@ -122,18 +122,13 @@ function callback(data) {
     $( "#raw" ).append( data.raw );
     $( "#target" ).empty();
     var content = "<table border='1'>";
-    content += "<tr><th width='300'>Summary</th><th>Shorten Summary</th></tr>";
+    content += "<tr><th width='40%'>Summary</th>";
+    content += "<th width='40%'>Shorten Summary</th>";
+    content += "<th>Keywords</th></tr>";
     for (i = 0; i < data.short.length; i++) {
-        x = data.short[i][1];
-        x = x.sort( function(L, R) { return L < R; } );
-        var y = "<table border='0'>";
-        for (j = 0; j < x.length; j++) {
-            y += "<tr><td>" + x[j][0] + "<td>" + x[j][1].replace(/\_/g, "");
-            //console.log(x[j][1].replace(/\_/g, ""));
-        }
-        y += "</table>";
         content += "<tr><td>" + String(data.short[i][0]).replace(/\_/g, "") + "</td>";
-        content += "<td>" + y + "</td></tr>";
+        content += "<td>" + String(data.short[i][1]).replace(/\_/g, "") + "</td>";
+        content += "<td>" + String(data.short[i][2]).replace(/\_/g, " ") + "</td></tr>";
     }
     content += "</table>";
     $( "#target" ).append( content );
@@ -149,23 +144,13 @@ $( "#parse0" ).click(function() {
     clear();
     $.post( "/parse/0/", {'text': $( "#text" ).val(), 'tree': $( "#tree" ).get()[0].checked}, callback );
 });
-$( "#parse1" ).click(function() {
-    clear();
-    $.post( "/parse/1/", {'text': $( "#text" ).val(), 'tree': $( "#tree" ).get()[0].checked}, callback );
-});
-$( "#parse2" ).click(function() {
-    clear();
-    $.post( "/parse/2/", {'text': $( "#text" ).val(), 'tree': $( "#tree" ).get()[0].checked}, callback );
-});
 </script>
 {% endblock %}
 
 {% block body %}
 {% csrf_token %}
 <textarea id="text" rows="1" cols="80">她想用這樣修圖的方式，來成為她認為我想讓她成為的樣子。</textarea>
-<button type="button" id="parse0">Dynamic Programming</button>
-<button type="button" id="parse1">Clustering</button>
-<button type="button" id="parse2">Simple</button>
+<button type="button" id="parse0">Summarize</button>
 <input type="checkbox" id="tree" />
 <pre id='raw'>
 

@@ -1,19 +1,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import re
+from zh_lib import w2v, zh, zhlen, adjust_by_len, adjust_by_nouns
 from zh_tree import ChineseTree
-from gliacloud_api_client import Word2Vec
-from summarizer import similarity, dynaprog_summarizer, cluster_summarizer, maximal_summarizer
-from zhconvert import ZHConvert
-from datetime import datetime as dt
+from zh_grouper import TextGrouper
+from zh_keyword import find_keywords
+from summarizer import similarity, maximal_summarizer
 
-try:
-    zh = ZHConvert('http://localhost:9998/pos?wsdl', 'http://localhost:9999/seg?wsdl')
-    zh.tw_postag(u'今天天氣真好')
-except:
-    zh = ZHConvert()
-w2v = Word2Vec('zh')
-summary_data = {}
 universal_tagset = {
     'AD': 'ADV',
     'AS': 'PRT',
@@ -52,43 +45,6 @@ universal_tagset = {
 }
 
 
-def zhlen(text):
-    try:
-        return len(text.replace('_', '').encode('big5')) // 2.0
-    except:
-        return len(text.replace('_', ''))
-
-
-def to_half_word(text):
-    '''Transfer double-width character to single-width character.'''
-    return ''.join([chr(ord(ch) - 0xff00 + 0x20)
-                    if ord(ch) >= 0xff01 and ord(ch) <= 0xff5e else ch
-                    for ch in text])
-
-
-def tidify(string):
-    string = to_half_word(string) + ' '
-    string = string.replace(u'\u2010', '-').replace(u'\u2012', '-'). \
-        replace(u'\u2013', '-').replace(u'\u2014', '-').replace(u'\u2015', '-'). \
-        replace(u'\u2018', '\'').replace(u'\u2019', '\'').replace(u'\u201a', '\''). \
-        replace(u'\u201b', '\'').replace(u'\u201c', '"').replace(u'\u201d', '"'). \
-        replace(u'\u201e', '"').replace(u'\u201f', '"').replace(u'\u2024', '.'). \
-        replace(u'\n', '').replace(u'\r', '').replace(u'《', '').replace(u'》', ''). \
-        replace(u'【', '').replace(u'】', '').replace(u'「', '').replace(u'」', ''). \
-        replace('\t', u'。')
-    # remove private use area
-    string = ''.join([ch for ch in string if ord(ch) < 0xE000 or ord(ch) > 0xF8FF])
-    string = re.sub(' +', ' ', string)
-    string = re.sub('\(.+?\)', '', string)
-    string = re.sub(u'（.+?）', '', string)
-    string = re.sub(u'--.+?--', '', string)
-    return string
-
-
-def sent_tokenize(raw_text):
-    return re.findall(u'[^。？！；\?\!\;]+', raw_text)
-
-
 def find_special_nouns(raw_text):
     proper_noun = set()
     for w in w2v.oovword(raw_text):
@@ -100,28 +56,6 @@ def find_special_nouns(raw_text):
         elif len(w) > 1 and cnt > 8 and all([ord(ch) > 256 for ch in w]):
             proper_noun.add(w)
     return proper_noun
-
-
-def adjust_by_nouns(score, sentences, proper_nouns, growth=1.05):
-    for i, s in enumerate(sentences):
-        words = s.split()
-        n_proper_nouns = sum([w in proper_nouns for w in words])
-        reward = growth ** n_proper_nouns
-        score[i] *= reward
-    return score
-
-
-def adjust_by_len(score, sentences, limit=30, decay=0.998):
-    for i, s in enumerate(sentences):
-        l = zhlen(s)
-        if l > limit + 10:
-            panelty = decay ** (l - limit - 10)
-        elif l < limit:
-            panelty = decay ** (limit - l)
-        else:
-            panelty = 1.0
-        score[i] *= panelty
-    return score
 
 
 dont_split_word = {
@@ -138,7 +72,7 @@ def split_sentence(sentence):
         t3 = universal_tagset[tagtext[i][1]]
         w1, w2, w3 = tagtext[i - 2][0], tagtext[i - 1][0], tagtext[i][0]
         if (t1 in ('VERB', 'NOUN') and t2 == '.' and t3 in ('ADV', 'ADP')) or \
-            (t1 == 'PRT' and t2 == '.' and t3 == 'NOUN') and w3 not in dont_split_word:
+           (t1 == 'PRT' and t2 == '.' and t3 == 'NOUN') and w3 not in dont_split_word:
             split_point.append((sentence.find(w1 + w2 + w3) + len(w1), t1))
     if not split_point:
         return [sentence]  # no way to split the sentence
@@ -165,7 +99,6 @@ def newline_hint(string):
 
 
 def chunking_sent(sentence, forceFirstSubSent=False):
-    start = dt.now()
     length = zhlen(sentence)
     if length < 30:
         return [newline_hint(sentence)]
@@ -196,13 +129,13 @@ def shorten_sents(summary, ref_vec=None, special_nouns=None):
             if special_nouns:
                 score = adjust_by_nouns(score, chunks, special_nouns)
             score = adjust_by_len(score, chunks)
-            shorten.append([ch for ch in zip(score, chunks) if not np.isnan(ch[0])])
+            shorten.append(sorted([ch for ch in zip(score, chunks) if not np.isnan(ch[0])]))
         else:
             shorten.append([(1.0, newline_hint(s))])
     return np.array(shorten)
 
 
-def summary_text(raw_text, n_summary=5, algorithm=2, shorten=True):
+def summary_text(raw_text, n_summary=5, algorithm=0, shorten=True):
     '''Given a text string, split it into sentences.
     Find `n_summary` sentences to summarize the text.
     Args:
@@ -213,30 +146,59 @@ def summary_text(raw_text, n_summary=5, algorithm=2, shorten=True):
     Returns:
         :obj:`np.array` of :obj:`str`: a list of summary sentences.
     '''
-    raw_text = tidify(raw_text.replace(u'\n\n', u'。\n\n'))
-    special_nouns = find_special_nouns(raw_text)
+    assert algorithm == 0  # we don't use this parameter now
+
+    text = TextGrouper(raw_text)
+    # special_nouns = find_special_nouns(text.tidy_text)
     # print '>>> Proper Nouns', '/'.join(special_nouns)
 
-    sents = np.array([s.strip() for s in sent_tokenize(raw_text) if s.strip()])
-    score_reward = adjust_by_nouns([1.0] * len(sents), sents, special_nouns, growth=1.01)
-    # score_reward = np.ones(len(sents))
-    sents_vector = w2v.sentvec(sents)
-    article_vector = np.sum(sents_vector, axis=0)
-
-    if algorithm == 0:
-        index = dynaprog_summarizer(sents_vector, article_vector)
-    elif algorithm == 1:
-        if len(sents) <= n_summary:
-            index = np.arange(len(sents))
-        else:
-            index = cluster_summarizer(sents_vector, article_vector, n_summary, score_reward)
-    elif algorithm == 2:
-        index = maximal_summarizer(sents_vector, article_vector, n_summary, score_reward)
+    sents = text.sents
+    sents_vector = text.vector
+    if text.predn <= 1:  # no text group
+        article_vector = np.sum(sents_vector, axis=0)
+        index = maximal_summarizer(sents_vector, article_vector, n_summary)
+        kw = '_'.join(find_keywords(text)[:5])
+        keywords = [kw] * len(index)
+    else:
+        groups = text.group()
+        group_size = [max(1, n_summary // len(groups))] * len(groups)
+        if sum(group_size) < n_summary:
+            group_size[0] += n_summary - sum(group_size)
+        group_vector = [np.sum(sents_vector[g], axis=0) for g in groups]
+        index = []
+        keywords = []
+        used_keywords = set()
+        for gvec, gid, gsize in zip(group_vector, groups, group_size):
+            sel = maximal_summarizer(sents_vector[gid], gvec, gsize)
+            index.extend(gid[sel])
+            kw = '_'.join([k for k in find_keywords(text, gid)
+                           if k not in used_keywords][:2])
+            used_keywords |= set(kw.split('_'))
+            for i in range(gsize):
+                keywords.append(kw)
+        if text.sent_numbers is not None:
+            tmp_kw = zip(index, keywords)
+            tmp_kw.extend(zip(text.sent_numbers, [''] * len(text.sent_numbers)))
+            index.extend(text.sent_numbers.tolist())
+            index = sorted(index)
+            keywords = [kw for i, kw in sorted(tmp_kw)]
 
     if shorten:
-        return shorten_sents(sents[index], article_vector, special_nouns)
+        short = shorten_sents(sents[index])
     else:
-        summary = []
-        for i in index:
-            summary.append((similarity(sents_vector[i], article_vector), newline_hint(sents[i])))
-        return np.array(summary)
+        short = [[(1.0, s)] for s in sents[index]]
+    summary = []
+    last_sum = None
+    for i, sent, short_sent, kw in zip(index, sents[index], short, keywords):
+        if text.sent_numbers is not None and i in text.sent_numbers:
+            last_sum = newline_hint(sent)
+            last_short = short_sent[-1][1]
+        else:
+            if last_sum is not None:
+                sent = last_sum + '_<br>_' + sent
+                short = last_short + '_<br>_' + short_sent[-1][1]
+                summary.append((newline_hint(sent), short, kw))
+                last_sum = None
+            else:
+                summary.append((newline_hint(sent), short_sent[-1][1], kw))
+    return np.array(summary)
