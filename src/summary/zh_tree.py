@@ -205,8 +205,8 @@ class ChineseTree(object):
         else:
             self.isNameWithPOS = False
 
-        sentence = re.sub('([A-Za-z]) ([A-Za-z])', '\\1_\\2', sentence)
-        sentence = re.sub('([A-Za-z]) ([A-Za-z])', '\\1_\\2', sentence)
+        sentence = re.sub('([A-Za-z0-9]) ([A-Za-z0-9])', '\\1_\\2', sentence)
+        sentence = re.sub('([A-Za-z0-9]) ([A-Za-z0-9])', '\\1_\\2', sentence)
         sentence = sentence.replace(' ', '')
         raw = Parser('zh').parse(sentence)[0]
         n_nodes = len(raw) + 1

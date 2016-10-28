@@ -92,8 +92,8 @@ def split_sentence(sentence):
 
 
 def newline_hint(string):
-    string = re.sub(u'([A-Za-z\.]) ([A-Za-z\.])', u'\\1_\\2', string.replace('_', ''))
-    string = re.sub(u'([A-Za-z\.]) ([A-Za-z\.])', u'\\1_\\2', string)
+    string = re.sub(u'([A-Za-z0-9\.]) ([A-Za-z0-9\.])', u'\\1_\\2', string.replace('_', ''))
+    string = re.sub(u'([A-Za-z0-9\.]) ([A-Za-z0-9\.])', u'\\1_\\2', string)
     seg = [w.replace('_', ' ') for w in (zh.tw_segment(string) or [])]
     return '_'.join(seg)
 
@@ -184,21 +184,21 @@ def summary_text(raw_text, n_summary=5, algorithm=0, shorten=True):
             keywords = [kw for i, kw in sorted(tmp_kw)]
 
     if shorten:
-        short = shorten_sents(sents[index])
+        short = [s[-1][1] for s in shorten_sents(sents[index])]
     else:
-        short = [[(1.0, s)] for s in sents[index]]
+        short = [''] * len(index)
     summary = []
     last_sum = None
     for i, sent, short_sent, kw in zip(index, sents[index], short, keywords):
         if text.sent_numbers is not None and i in text.sent_numbers:
             last_sum = newline_hint(sent)
-            last_short = short_sent[-1][1]
+            last_short = short_sent
         else:
             if last_sum is not None:
                 sent = last_sum + '_<br>_' + sent
-                short = last_short + '_<br>_' + short_sent[-1][1]
+                short = last_short + '_<br>_' + short_sent
                 summary.append((newline_hint(sent), short, kw))
                 last_sum = None
             else:
-                summary.append((newline_hint(sent), short_sent[-1][1], kw))
+                summary.append((newline_hint(sent), short_sent, kw))
     return np.array(summary)
