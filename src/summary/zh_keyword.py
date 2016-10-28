@@ -2,7 +2,7 @@
 from nltk.chunk.regexp import ChunkRule, ChinkRule
 from nltk.chunk import tagstr2tree
 from nltk import RegexpChunkParser
-from zh_lib import w2v, zh
+from zh_lib import w2v, zh, zhlen
 from summarizer import similarity
 import re
 import numpy as np
@@ -44,7 +44,30 @@ freq_words = {
     u'天', u'即', u'什麼', u'起', u'件', u'民國', u'曾',
 }
 
-np_chunk_parser = RegexpChunkParser([ChunkRule('<JJ>*<NT|NR|NN>+', 'NP chunking')])
+chunk_nr = RegexpChunkParser([ChunkRule('<NR>+', 'nr')])
+chunk_nt = RegexpChunkParser([ChunkRule('<NT>+', 'nt')])
+chunk_nncc = RegexpChunkParser([ChunkRule('<NN|NR><NN|NR|CC|VV|JJ>*<NN|NR>', 'nncc')])
+
+
+def chunk_parse(parser, text):
+    nplist = []
+    parsed_text = parser.parse(tagstr2tree(text))
+    for node in parsed_text.productions():
+        if str(node.lhs()) != 'NP':
+            continue
+        temp = []
+        for w in node.rhs():
+            try:
+                w[0].encode('ascii')
+                temp.append(' ')
+                temp.append(w[0])
+                temp.append(' ')
+            except:
+                temp.append(w[0])
+        n = re.sub(' +', ' ', ''.join(temp)).strip()
+        if n not in freq_words:
+            nplist.append(n)
+    return nplist
 
 
 def np_chunking(sents):
@@ -53,37 +76,45 @@ def np_chunking(sents):
     if isinstance(sents, basestring):
         sents = [sents]
 
+    nrlist = []
     nplist = []
     for sent in sents:
-        text = ' '.join([w + '/' + t for w, t in zh.tw_postag(sent)])
-        parsed_text = np_chunk_parser.parse(tagstr2tree(text))
-        for node in parsed_text.productions():
-            if str(node.lhs()) != 'NP':
-                continue
-            temp = []
-            for w in node.rhs():
-                try:
-                    w[0].encode('ascii')
-                    temp.append(' ')
-                    temp.append(w[0])
-                    temp.append(' ')
-                except:
-                    temp.append(w[0])
-            n = re.sub(' +', ' ', ''.join(temp))
-            if n not in freq_words:
-                nplist.append(n)
-    return nplist
+        text = ' '.join([w + '/' + t for w, t in zh.tw_postag(sent)
+                         if w not in u'[]<>/{}'])
+        nrlist.extend(chunk_parse(chunk_nr, text))
+        nplist.extend(chunk_parse(chunk_nt, text))
+        nplist.extend(chunk_parse(chunk_nncc, text))
+    text = u'。'.join(sents)
+    nplist.extend([w for w in re.findall(u'「.+?」', text) if len(w) < 7])
+    nplist.extend([w for w in re.findall(u'『.+?』', text) if len(w) < 7])
+    nplist.extend([w for w in re.findall(u'《.+?》', text) if len(w) < 7])
+    nplist.extend([w for w in re.findall(u'”.+?”', text) if len(w) < 7])
+    nplist.extend([w for w in re.findall(u'[^A-Za-z]([a-z]+)[^A-Za-z]', text)])
+    nrlist.extend([w for w in re.findall(u'[^A-Za-z]([A-Z][A-Za-z]+)[^A-Za-z]', text)])
+    nplist.extend(nrlist)
+    nplist = list(set([n.strip() for n in nplist if len(n.strip()) > 1]))
+    nrlist = list(set([n.strip() for n in nrlist if len(n.strip()) > 1]))
+    # for i in range(len(nplist))[::-1]:
+    #     if any([n.find(nplist[i]) >= 0 and n != nplist[i] for n in nplist]):
+    #         nplist.pop(i)
+    # for i in range(len(nrlist))[::-1]:
+    #     if any([n.find(nrlist[i]) >= 0 and n != nrlist[i] for n in nrlist]):
+    #         nrlist.pop(i)
+    return list(set(nplist)), set(nrlist)
 
 
 def find_keywords(text, select=None):
     if select is None:
         select = np.ones(len(text.sents), dtype=bool)
-    np_list = list(set([n for s in text.sents[select] for n in np_chunking(s) if len(n) > 1]))
+    np_list, nr_list = np_chunking(text.sents[select])
     article_vector = np.sum(text.vector[select], axis=0)
     keyword_vector = w2v.sentvec(np_list)
     sim = similarity(keyword_vector, article_vector)
     sim[np.isnan(sim)] = 1
     for i in range(len(sim)):
-        sim[i] *= (1.10 ** min(text.tidy_text.count(np_list[i]), 3))
-        sim[i] *= (0.90 ** max(4 - len(np_list[i]), 0))
+        sim[i] *= (1.10 ** (np_list[i] in nr_list))
+        sim[i] *= (1.30 ** min(text.tidy_text.count(np_list[i]), 3))
+        sim[i] *= (0.80 ** max(3 - zhlen(np_list[i]), 0))
+        sim[i] *= (0.90 ** max(zhlen(np_list[i]) - 6, 0))
+        sim[i] *= (1.10 ** all(ord(c) < 128 for c in np_list[i]))
     return np.array(np_list)[np.argsort(sim)[::-1]]
