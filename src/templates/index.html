@@ -33,93 +33,7 @@ td {
 {% block extra_js %}
 <script src="http://d3js.org/d3.v3.min.js"></script>
 <script>
-var treeData = [{"name": "None"}];
-// ************** Generate the tree diagram	 *****************
-var margin = {top: 40, right: 40, bottom: 20, left: 40},
-	width = 1000 - margin.right - margin.left,
-	height = 1000 - margin.top - margin.bottom;
-var i = 0;
-var short;
-var tree = d3.layout.tree()
-	.size([height, width]);
-var diagonal = d3.svg.diagonal()
-	.projection(function(d) { return [d.x, d.y]; });
-var svg1 = d3.select("body").append("svg")
-	.attr("width", width + margin.right + margin.left)
-	.attr("height", height + margin.top + margin.bottom)
-  .append("g")
-	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-var svg2 = d3.select("body").append("svg")
-	.attr("width", width + margin.right + margin.left)
-	.attr("height", height + margin.top + margin.bottom)
-  .append("g")
-	.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-update(treeData[0], svg1);
-function update(source, svg) {
-    svg.selectAll("*").remove()
-    // Compute the new tree layout.
-    var nodes = tree.nodes(source).reverse(), links = tree.links(nodes);
-    // Normalize for fixed-depth.
-    nodes.forEach(function(d) { d.y = d.depth * 70; });
-
-    var node = svg.selectAll("g.node")
-        .data(nodes, function(d) { return d.id + 1; });
-
-    var link = svg.selectAll("path.link")
-        .data(links, function(d) { return d.target.id; })
-        .enter()
-        .append("g");
-
-    link.append("path")
-        .attr("class", "link")
-        .attr("d", diagonal);
-
-    link.insert("text")
-        .attr("class", "link_text")
-        .style("fill-opacity", 1)
-        .attr("transform", function(d) {
-            return "translate(" + ((d.source.x + d.target.x)/2) + "," + ((d.source.y + d.target.y - 20)/2) + ")";
-        })
-        .attr("dy", ".35em")
-        .attr("text-anchor", "middle")
-        .text(function(d) { return d.target.rel ; });
-
-    // Enter the nodes.
-    var nodeEnter = node.enter().append("g")
-        .attr("class", "node")
-        .attr("transform", function(d) {
-            return "translate(" + d.x + "," + d.y + ")"; });
-
-    nodeEnter.append("circle")
-        .attr("r", 10)
-        .style("fill", function(d) {
-            return d.root ?  "#ff0" : "#fff" })
-        .style("stroke", function(d) {
-            return d.merged ? "#f00" : "#048" });
-
-    nodeEnter.append("text")
-        .attr("y", function(d) {
-            return d.children || d._children ? -18 : 18; })
-        .attr("dy", ".35em")
-        .attr("text-anchor", "middle")
-        .text(function(d) { return d.name.replace(/\_/g, ""); })
-        .style("fill-opacity", 1);
-
-    nodeEnter.append("text")
-        .attr("dy", ".35em")
-        .attr("text-anchor", "middle")
-        .text(function(d) { return d.id; })
-        .style("fill-opacity", 1);
-}
 function callback(data) {
-    treeData = data.tree;
-    short = data.short;
-    if ($( "#tree" ).get()[0].checked) {
-        update(data.tree_orig, svg1);
-        update(data.tree, svg2);
-    }
-    $( "#raw" ).empty();
-    $( "#raw" ).append( data.raw );
     $( "#target" ).empty();
     var content = "<table border='1'>";
     content += "<tr><th width='40%'>Summary</th>";
@@ -133,16 +47,9 @@ function callback(data) {
     content += "</table>";
     $( "#target" ).append( content );
 }
-function clear() {
-    svg1.selectAll("*").remove();
-    svg2.selectAll("*").remove();
-    $( "#raw" ).empty();
-    $( "#raw" ).append( "in progress..." );
+$( "#summary" ).click(function() {
     $( "#target" ).empty();
-}
-$( "#parse0" ).click(function() {
-    clear();
-    $.post( "/parse/0/", {'text': $( "#text" ).val(), 'tree': $( "#tree" ).get()[0].checked}, callback );
+    $.post( "/summary/", {'text': $( "#text" ).val()}, callback );
 });
 </script>
 {% endblock %}
@@ -150,11 +57,7 @@ $( "#parse0" ).click(function() {
 {% block body %}
 {% csrf_token %}
 <textarea id="text" rows="1" cols="80">她想用這樣修圖的方式，來成為她認為我想讓她成為的樣子。</textarea>
-<button type="button" id="parse0">Summarize</button>
-<input type="checkbox" id="tree" />
-<pre id='raw'>
-
-</pre>
+<button type="button" id="summary">Summarize</button>
 <div id="target"></div><br />
 {% endblock %}
 
