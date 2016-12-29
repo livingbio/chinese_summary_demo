@@ -42,7 +42,7 @@ function callback(data) {
     for (i = 0; i < data.short.length; i++) {
         content += "<tr><td>" + String(data.short[i][0]).replace(/\_/g, "") + "</td>";
         content += "<td>" + String(data.short[i][1]).replace(/\_/g, "") + "</td>";
-        content += "<td>" + String(data.short[i][2]).replace(/\_/g, " ") + "</td></tr>";
+        content += "<td>" + String(data.short[i][2]).replace(/\_/g, "<br>") + "</td></tr>";
     }
     content += "</table>";
     $( "#target" ).append( content );
