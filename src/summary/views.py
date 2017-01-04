@@ -68,7 +68,7 @@ def handle(text):
         result.append((sent.seg, sent.seg, "_".join(keywords)))
 
     if len(article) == 1:  # number of paragraphs is 1
-        return result
+        return result, article.lang
 
     for para_set in article[1:]:
         sent = para_set.summary[0]
