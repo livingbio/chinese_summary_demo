@@ -52,7 +52,8 @@ def handle(text):
 
     para_set = article[0]
     keywords = para_set.keywords.tolist()
-    keywords.insert(0, find_person(article)[0][0])
+    if article.lang == 'ja':
+        keywords.insert(0, find_person(article)[0][0])
     sents = [para_set[0]]  # always choose first sentence
     sim = para_set.mostsim[:first_summary].tolist()
     if sim.count(0):
@@ -72,19 +73,21 @@ def handle(text):
     for para_set in article[1:]:
         sent = para_set.summary[0]
         keywords = para_set.keywords.tolist()
-        keywords.insert(0, find_person(article)[0][0])
+        if article.lang == 'ja':
+            keywords.insert(0, find_person(article)[0][0])
         # s1, s2 = sent.seg, sent.short.seg
         s1, s2 = sent.seg, sent.seg
         if para_set.title is not None:
             s1 = para_set.title.seg + '<br>' + s1
             s2 = para_set.title.seg + '<br>' + s2
         result.append((s1, s2, "_".join(keywords)))
-    return result
+    return result, article.lang
 
 
 def parse_api(request):
-    summary = handle(request.POST['text'])
+    summary, lang = handle(request.POST['text'])
     ret = {
+        'lang': lang,
         'short': summary,
     }
     return JsonResponse(ret)

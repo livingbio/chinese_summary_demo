@@ -42,7 +42,10 @@ function callback(data) {
     for (i = 0; i < data.short.length; i++) {
         content += "<tr><td>" + String(data.short[i][0]).replace(/\_/g, "") + "</td>";
         content += "<td>" + String(data.short[i][1]).replace(/\_/g, "") + "</td>";
-        content += "<td><b>人名:</b><br>" + String(data.short[i][2]).replace("_", "<hr><b>原始關鍵字:</b><br>").replace(/\_/g, "<br>") + "</td></tr>";
+        if (data.lang == 'ja')
+            content += "<td><b>人名:</b><br>" + String(data.short[i][2]).replace("_", "<hr><b>原始關鍵字:</b><br>").replace(/\_/g, "<br>") + "</td></tr>";
+        else
+            content += "<td>" + String(data.short[i][2]).replace(/\_/g, "<br>") + "</td></tr>";
     }
     content += "</table>";
     $( "#target" ).append( content );
