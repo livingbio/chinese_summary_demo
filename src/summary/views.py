@@ -8,8 +8,9 @@ from summarizer.lib_detectlang import detect_lang
 
 def parse_api(request):
     lang = detect_lang(request.POST['text'])
-    summary = summary_text[lang[:2]](request.POST['text'], request.POST['title'])
+    sections = summary_text[lang[:2]](request.POST['text'], request.POST['title'])
     ret = {
-        'short': summary,
+        'summary': [unicode(sec).replace('\n', '<br>') for sec in sections],
+        'keyword': ['<br>'.join(sec.keywords[:3]) for sec in sections],
     }
     return JsonResponse(ret)

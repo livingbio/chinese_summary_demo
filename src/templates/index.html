@@ -36,13 +36,11 @@ td {
 function callback(data) {
     $( "#target" ).empty();
     var content = "<table border='1'>";
-    content += "<tr><th width='40%'>Summary</th>";
-    content += "<th width='40%'>Shorten Summary</th>";
+    content += "<tr><th width='70%'>Summary</th>";
     content += "<th>Keywords</th></tr>";
-    for (i = 0; i < data.short.length; i++) {
-        content += "<tr><td>" + String(data.short[i][0]).replace(/\_/g, "") + "</td>";
-        content += "<td>" + String(data.short[i][1]).replace(/\_/g, "") + "</td>";
-        content += "<td>" + String(data.short[i][2]).replace(/\_/g, "<br>") + "</td></tr>";
+    for (i = 0; i < data.summary.length; i++) {
+        content += "<tr><td>" + String(data.summary[i]) + "</td>";
+        content += "<td>" + String(data.keyword[i]) + "</td></tr>";
     }
     content += "</table>";
     $( "#target" ).append( content );
